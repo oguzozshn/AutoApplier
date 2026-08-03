@@ -55,7 +55,8 @@ namespace AutoApplier.Models
                     {
                         "backend", "back-end", ".net", "dotnet", "c#", "asp.net", "api", "microservice"
                     },
-                    ResumePath = @"C:\Users\oguzo\OneDrive\Desktop\CV\CV-Backend.pdf",
+                    // Kendi CV dosyanın tam yolunu yaz; dosya yoksa yükleme adımı atlanır.
+                    ResumePath = @"C:\Users\KULLANICI\Desktop\CV\CV-Backend.pdf",
                     CurrentTitle = "Backend Developer",
                     CurrentCompany = "Mevcut Şirket",
                     YearsOfExperience = "3",
@@ -80,7 +81,7 @@ namespace AutoApplier.Models
                     {
                         "frontend", "front-end", "react", "angular", "vue", "javascript", "typescript", "ui developer"
                     },
-                    ResumePath = @"C:\Users\oguzo\OneDrive\Desktop\CV\CV-Frontend.pdf",
+                    ResumePath = @"C:\Users\KULLANICI\Desktop\CV\CV-Frontend.pdf",
                     CurrentTitle = "Frontend Developer",
                     CurrentCompany = "Mevcut Şirket",
                     YearsOfExperience = "2",
