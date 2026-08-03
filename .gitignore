@@ -1,0 +1,16 @@
+# Derleme çıktıları
+bin/
+obj/
+
+# Kişisel bilgiler: ad, telefon, e-posta, CV yolları.
+# İlk çalıştırmada örnek dosyalar otomatik oluşuyor, depoda tutmaya gerek yok.
+config/
+
+# Çekilen ilanlar, dışa aktarımlar ve Chrome oturumu (çerezler dahil).
+data/
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
