@@ -465,11 +465,66 @@ namespace AutoApplier.Services
             const group = el.closest('[role="group"],[role="radiogroup"]');
             if (group) push(group.getAttribute('aria-label'));
 
-            ['name', 'placeholder', 'data-automation-id', 'title'].forEach(attr => {
+            push(el.getAttribute('placeholder'));
+
+            // Standart etiket kaynaklarının hiçbiri tutmadıysa alanı saran kapsayıcının
+            // metnine düş. Lever gibi sistemler soruyu <label> yerine ayrı bir div'de
+            // tutuyor; bu olmadan alan adı olarak "cards[uuid][field0]" kalıyor.
+            if (parts.length === 0) push(containerText(el));
+
+            ['name', 'data-automation-id', 'title'].forEach(attr => {
                 push(el.getAttribute(attr));
             });
 
             return parts.join(' | ');
+            """;
+
+        /// <summary>
+        /// Alanı saran en yakın kapsayıcının metnini çıkarır. Girdi elemanlarının kendi
+        /// değerleri temizlenir, geriye sadece etiket/soru metni kalır.
+        /// Her iki etiket betiğinin başına eklenir.
+        /// </summary>
+        private const string ContainerTextHelper = """
+            function containerText(el) {
+                let node = el.parentElement;
+                for (let depth = 0; node && depth < 4; depth++, node = node.parentElement) {
+                    const clone = node.cloneNode(true);
+                    clone.querySelectorAll('input,select,textarea,button,option,svg').forEach(n => n.remove());
+                    const text = (clone.textContent || '').replace(/\s+/g, ' ').trim();
+                    if (text.length > 0 && text.length < 300) return text;
+                }
+                return '';
+            }
+
+            // Radio grupları için: aynı gruptaki birden fazla seçeneği kapsayan ilk kutuyu bul.
+            // O kutunun metninden seçenek etiketlerini çıkarınca geriye sorunun kendisi kalır.
+            // Tek seçeneğin kapsayıcısına bakmak "Yes, I have." gibi cevabı soru sanmaya yol açıyor.
+            function radioQuestion(el) {
+                const name = el.getAttribute('name');
+                if (!name) return '';
+
+                let node = el.parentElement;
+                for (let depth = 0; node && depth < 6; depth++, node = node.parentElement) {
+                    let siblings;
+                    try {
+                        siblings = node.querySelectorAll(
+                            'input[type="radio"][name="' + CSS.escape(name) + '"]');
+                    } catch (e) { return ''; }
+
+                    if (siblings.length < 2) continue;
+
+                    const clone = node.cloneNode(true);
+                    // Seçenek metinleri kendi label'ları içinde; onları at, soru kalsın.
+                    clone.querySelectorAll('label').forEach(l => {
+                        if (l.querySelector('input')) l.remove();
+                    });
+                    clone.querySelectorAll('input,select,textarea,button,option,svg').forEach(n => n.remove());
+
+                    const text = (clone.textContent || '').replace(/\s+/g, ' ').trim();
+                    if (text.length > 0 && text.length < 300) return text;
+                }
+                return '';
+            }
             """;
 
         /// <summary>
@@ -500,6 +555,11 @@ namespace AutoApplier.Services
                 }
             }
 
+            // Fieldset/legend yoksa önce grubu saran kutudan soruyu çıkarmayı dene,
+            // olmazsa genel kapsayıcı metnine düş — Lever'ın radio grupları böyle.
+            if (parts.length === 0) push(radioQuestion(el));
+            if (parts.length === 0) push(containerText(el));
+
             push(el.getAttribute('name'));
             return parts.join(' | ');
             """;
@@ -522,7 +582,7 @@ namespace AutoApplier.Services
         {
             try
             {
-                var result = ExecuteScript(LabelScript, element) as string;
+                var result = ExecuteScript(ContainerTextHelper + "\n" + LabelScript, element) as string;
                 return result ?? "";
             }
             catch
@@ -536,7 +596,7 @@ namespace AutoApplier.Services
         {
             try
             {
-                var result = ExecuteScript(GroupLabelScript, element) as string;
+                var result = ExecuteScript(ContainerTextHelper + "\n" + GroupLabelScript, element) as string;
                 return string.IsNullOrWhiteSpace(result) ? GetLabelText(element) : result;
             }
             catch

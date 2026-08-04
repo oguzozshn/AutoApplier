@@ -30,7 +30,9 @@ namespace AutoApplier.Services
 
             // Posta kodu "address" kuralından önce gelmeli.
             new(AnswerKeys.PostalCode, new[] { "postal code", "postcode", "zip", "posta kodu" }),
-            new(AnswerKeys.City,       new[] { "city", "town", "sehir", "ilce" }),
+            // "location" burada güvenli: "relocation" daha uzun eşleştiği için taşınma
+            // sorusunu çalmıyor (bkz. MatchKey'in en-uzun-eşleşme kuralı).
+            new(AnswerKeys.City,       new[] { "city", "town", "location", "sehir", "ilce" }),
             new(AnswerKeys.State,      new[] { "state", "province", "region", "il " }),
             new(AnswerKeys.Country,    new[] { "country", "ulke" }),
             // "email address" ve "linkedin address" bu kurala düşmesin.
