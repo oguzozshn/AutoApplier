@@ -56,11 +56,19 @@ namespace AutoApplier.Services
                                       : $" — CV: {Path.GetFileName(profile.ResumePath)}"));
                 Console.WriteLine(new string('=', 70));
 
-                Console.Write("[Enter] aç  [a] atla  [q] çık > ");
+                Console.Write("[Enter] aç  [a] şimdilik geç  [x] ilgilenmiyorum  [q] çık > ");
                 var choice = (Console.ReadLine() ?? "").Trim().ToLowerInvariant();
 
                 if (choice == "q") break;
                 if (choice == "a") continue;
+
+                if (choice == "x")
+                {
+                    _store.MarkDismissed(job.JobId);
+                    _store.Save();
+                    Console.WriteLine("Elendi — bu ilan bir daha karşına çıkmayacak.");
+                    continue;
+                }
 
                 if (!Navigate(job.Url)) continue;
 
@@ -86,9 +94,14 @@ namespace AutoApplier.Services
             Console.WriteLine("İlan açıldı. Tarayıcıda başvuru butonuna tıkla (dış siteye yönlendirebilir).");
             Console.WriteLine("Form ekrandayken:");
             Console.WriteLine("  [d] formu doldur   (çok adımlı formlarda her adımda tekrar bas)");
-            Console.WriteLine("  [t] başvuruldu olarak işaretle ve sonraki ilana geç");
-            Console.WriteLine("  [n] sonraki ilana geç");
+            Console.WriteLine("  [t] başvurdum — işaretle ve sonraki ilana geç");
+            Console.WriteLine("  [x] ilgilenmiyorum — bir daha gösterme");
+            Console.WriteLine("  [n] şimdilik geç (beklemede kalır)");
             Console.WriteLine("  [q] çık");
+
+            // Formu doldurduysan büyük ihtimalle başvurdun. "n" ile geçerken bunu bir kez
+            // soruyoruz, yoksa başvurduğun ilan beklemede kalıp tekrar tekrar karşına çıkıyor.
+            var formFilled = false;
 
             while (true)
             {
@@ -100,6 +113,7 @@ namespace AutoApplier.Services
                     case "d":
                         SwitchToNewestTab();
                         FillCurrentPage(profile);
+                        formFilled = true;
                         break;
 
                     case "t":
@@ -108,15 +122,27 @@ namespace AutoApplier.Services
                         Console.WriteLine("Başvuruldu olarak işaretlendi.");
                         return;
 
+                    case "x":
+                        _store.MarkDismissed(job.JobId);
+                        _store.Save();
+                        Console.WriteLine("Elendi — bu ilan bir daha karşına çıkmayacak.");
+                        return;
+
                     case "n":
                     case "":
+                        if (formFilled && AskApplied())
+                        {
+                            _store.MarkProcessed(job.JobId);
+                            _store.Save();
+                            Console.WriteLine("Başvuruldu olarak işaretlendi.");
+                        }
                         return;
 
                     case "q":
                         throw new OperationCanceledException();
 
                     default:
-                        Console.WriteLine("Bilinmeyen komut. [d] doldur, [t] işaretle, [n] sonraki, [q] çık");
+                        Console.WriteLine("Bilinmeyen komut. [d] doldur, [t] başvurdum, [x] ilgilenmiyorum, [n] sonraki, [q] çık");
                         break;
                 }
             }
@@ -169,6 +195,14 @@ namespace AutoApplier.Services
 
             Console.WriteLine();
             Console.WriteLine("Formu kontrol et ve göndermeyi SEN yap. Bu araç gönder tuşuna basmaz.");
+        }
+
+        /// <summary>Formu doldurduktan sonra "n" ile geçerken başvurunun tamamlanıp tamamlanmadığını sorar.</summary>
+        private static bool AskApplied()
+        {
+            Console.Write("Bu ilana başvurdun mu? [e/h] > ");
+            var answer = (Console.ReadLine() ?? "").Trim().ToLowerInvariant();
+            return answer is "e" or "evet" or "y" or "yes";
         }
 
         /// <summary>Başvuru butonu yeni sekmede açılmış olabilir; en son açılan sekmeye geç.</summary>

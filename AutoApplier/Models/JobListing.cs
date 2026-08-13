@@ -28,8 +28,15 @@ namespace AutoApplier.Models
 
         public DateTime FetchedAt { get; set; } = DateTime.Now;
 
-        /// <summary>Başvuru asistanı bu ilanı işledi mi.</summary>
+        /// <summary>Başvuru asistanı bu ilanı işledi mi (başvuruldu).</summary>
         public bool Processed { get; set; }
+
+        /// <summary>
+        /// İlana hiç başvurulmayacak — pozisyon alakasız, seviye uymuyor vb.
+        /// Başvurulmuş olmaktan ayrı tutuluyor: "neye başvurdum" sorusunun cevabı bozulmasın,
+        /// ama elenen ilan bir daha kuyruğa girmesin.
+        /// </summary>
+        public bool Dismissed { get; set; }
 
         [JsonIgnore]
         public string PostedDisplay => PostedDate?.ToString("yyyy-MM-dd") ?? "";

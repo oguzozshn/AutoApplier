@@ -21,6 +21,7 @@ namespace AutoApplier
                 Console.WriteLine("2) Başvuru asistanı — ilanı aç, formu profile göre doldur");
                 Console.WriteLine("3) Kaydedilen ilanları tekrar dışa aktar (CSV / Markdown)");
                 Console.WriteLine("4) Profil eşleşmesini test et (hangi ilana hangi profil?)");
+                Console.WriteLine("5) Profile uymayan ilanları topluca ele");
                 Console.WriteLine("0) Çıkış");
                 Console.Write("Seçim > ");
 
@@ -44,6 +45,10 @@ namespace AutoApplier
 
                         case "4":
                             TestProfileMatching();
+                            break;
+
+                        case "5":
+                            DismissUnmatched();
                             break;
 
                         case "0":
@@ -140,7 +145,9 @@ namespace AutoApplier
                 return;
             }
 
-            Console.Write($"{pending.Count} başvurulmamış ilan var. Kaç tanesiyle ilgilenelim? [hepsi] > ");
+            Console.WriteLine();
+            Console.WriteLine($"Durum: {pending.Count} bekleyen  |  {store.AppliedCount} başvuruldu  |  {store.DismissedCount} elendi");
+            Console.Write($"Kaç ilanla ilgilenelim? [hepsi] > ");
             var input = (Console.ReadLine() ?? "").Trim();
 
             var jobs = int.TryParse(input, out var limit) && limit > 0
@@ -223,6 +230,58 @@ namespace AutoApplier
             }
 
             Console.WriteLine("Yanlış eşleşenler varsa profiles.json içindeki MatchKeywords listelerini düzenle.");
+        }
+
+        // --- 5) Toplu eleme -----------------------------------------------------
+
+        /// <summary>
+        /// Hiçbir profille eşleşmeyen bekleyen ilanları topluca eler. Bunlar başvurulsa
+        /// varsayılan profile düşeceği, yani ilanla alakasız bir CV gideceği ilanlar —
+        /// kuyrukta durup her seferinde tekrar karşına çıkmalarının bir faydası yok.
+        /// </summary>
+        private static void DismissUnmatched()
+        {
+            var profiles = ConfigService.LoadOrCreate(
+                AppPaths.ProfilesFile, ProfileConfig.CreateDefault, out _);
+
+            var store = new JobStore();
+            store.Load();
+
+            var targets = store.Pending
+                .Where(job => !ProfileMatcher.Resolve(profiles, job).MatchedByKeyword)
+                .ToList();
+
+            if (targets.Count == 0)
+            {
+                Console.WriteLine("Bekleyen ilanların hepsi bir profille eşleşiyor. Elenecek ilan yok.");
+                return;
+            }
+
+            Console.WriteLine();
+            Console.WriteLine($"{store.Pending.Count} bekleyen ilandan {targets.Count} tanesi hiçbir profille eşleşmiyor:");
+
+            foreach (var job in targets.Take(10))
+            {
+                Console.WriteLine($"  {Trim(job.Title, 45),-47} {job.Company}");
+            }
+
+            if (targets.Count > 10) Console.WriteLine($"  ... ve {targets.Count - 10} tane daha");
+
+            Console.WriteLine();
+            Console.WriteLine("Elenen ilanlar bir daha asistanın kuyruğuna girmez (jobs.json'da kalırlar).");
+            Console.Write($"Bu {targets.Count} ilan elensin mi? [e/h] > ");
+
+            var answer = (Console.ReadLine() ?? "").Trim().ToLowerInvariant();
+            if (answer is not ("e" or "evet" or "y" or "yes"))
+            {
+                Console.WriteLine("Vazgeçildi, hiçbir şey değişmedi.");
+                return;
+            }
+
+            foreach (var job in targets) store.MarkDismissed(job.JobId);
+            store.Save();
+
+            Console.WriteLine($"{targets.Count} ilan elendi. Kuyrukta {store.Pending.Count} ilan kaldı.");
         }
 
         private static string Trim(string value, int max) =>

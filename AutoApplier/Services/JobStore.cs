@@ -19,10 +19,14 @@ namespace AutoApplier.Services
 
         public IReadOnlyCollection<JobListing> All => _jobs.Values;
 
+        /// <summary>Ne başvurulmuş ne de elenmiş ilanlar — asistanın kuyruğu budur.</summary>
         public List<JobListing> Pending => _jobs.Values
-            .Where(j => !j.Processed)
+            .Where(j => !j.Processed && !j.Dismissed)
             .OrderByDescending(j => j.PostedDate ?? DateTime.MinValue)
             .ToList();
+
+        public int AppliedCount => _jobs.Values.Count(j => j.Processed);
+        public int DismissedCount => _jobs.Values.Count(j => j.Dismissed);
 
         public void Load()
         {
@@ -89,6 +93,12 @@ namespace AutoApplier.Services
         public void MarkProcessed(string jobId)
         {
             if (_jobs.TryGetValue(jobId, out var job)) job.Processed = true;
+        }
+
+        /// <summary>İlanı kuyruktan kalıcı olarak çıkarır; başvuruldu olarak işaretlemez.</summary>
+        public void MarkDismissed(string jobId)
+        {
+            if (_jobs.TryGetValue(jobId, out var job)) job.Dismissed = true;
         }
     }
 }
