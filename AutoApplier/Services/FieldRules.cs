@@ -20,7 +20,12 @@ namespace AutoApplier.Services
         public static readonly IReadOnlyList<FieldRule> Rules = new List<FieldRule>
         {
             // --- İsim: en spesifikten genele ---
-            new(AnswerKeys.FirstName, new[] { "first name", "firstname", "given name", "forename", "ad ", "adiniz", "isim" }),
+            // "preferred name" / "tercih edilen isim": kurumsal formlarda hitap adı sorulur, ad yazılır.
+            new(AnswerKeys.FirstName, new[]
+            {
+                "first name", "firstname", "given name", "forename", "ad ", "adiniz", "isim",
+                "preferred name", "tercih edilen isim"
+            }),
             new(AnswerKeys.LastName,  new[] { "last name", "lastname", "surname", "family name", "soyad" }),
             new(AnswerKeys.FullName,  new[] { "full name", "fullname", "your name", "ad soyad", "isim soyisim" }),
 

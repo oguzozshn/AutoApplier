@@ -188,42 +188,93 @@ namespace AutoApplier.Services
                 .Where(o => !string.IsNullOrWhiteSpace(o.Text))
                 .ToList();
 
-            var target = FieldRules.Normalize(value).Trim();
-
-            var exact = options.FirstOrDefault(o => FieldRules.Normalize(o.Text).Trim() == target);
-            if (exact != null)
+            foreach (var target in CandidateValues(value))
             {
-                select.SelectByText(exact.Text);
-                chosen = exact.Text.Trim();
-                return true;
-            }
+                var exact = options.FirstOrDefault(o => FieldRules.Normalize(o.Text).Trim() == target);
+                if (exact != null)
+                {
+                    select.SelectByText(exact.Text);
+                    chosen = exact.Text.Trim();
+                    return true;
+                }
 
-            var partial = options.FirstOrDefault(o =>
-            {
-                var text = FieldRules.Normalize(o.Text).Trim();
+                var partial = options.FirstOrDefault(o =>
+                {
+                    var text = FieldRules.Normalize(o.Text).Trim();
 
-                // Boş/simgesel seçenek her hedefin içinde "bulunur"; onu eşleşme sayma.
-                if (text.Length == 0 || target.Length == 0) return false;
+                    // Boş/simgesel seçenek her hedefin içinde "bulunur"; onu eşleşme sayma.
+                    if (text.Length == 0 || target.Length == 0) return false;
 
-                return text.Contains(target, StringComparison.Ordinal) ||
-                       target.Contains(text, StringComparison.Ordinal);
-            });
+                    return text.Contains(target, StringComparison.Ordinal) ||
+                           target.Contains(text, StringComparison.Ordinal);
+                });
 
-            if (partial != null && !IsPlaceholderOption(partial.Text))
-            {
-                select.SelectByText(partial.Text);
-                chosen = partial.Text.Trim();
-                return true;
+                if (partial != null && !IsPlaceholderOption(partial.Text))
+                {
+                    select.SelectByText(partial.Text);
+                    chosen = partial.Text.Trim();
+                    return true;
+                }
             }
 
             return false;
         }
 
+        /// <summary>
+        /// Bir cevabın denenecek biçimleri. Profildeki bazı alanlar birden fazla değeri tek
+        /// metinde tutuyor ("Turkish (Native), English (C1)") ama form tek seçim bekliyor;
+        /// önce metnin tamamı, sonra virgülle ayrılmış parçalar, sonra parantezsiz halleri
+        /// deneniyor ki "Türkçe" seçeneği bulunabilsin.
+        /// </summary>
+        private static IEnumerable<string> CandidateValues(string value)
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+
+            IEnumerable<string> Yield(string raw)
+            {
+                var normalized = FieldRules.Normalize(raw).Trim();
+                if (normalized.Length > 0 && seen.Add(normalized)) yield return normalized;
+            }
+
+            foreach (var candidate in Yield(value)) yield return candidate;
+
+            var parts = value.Split(new[] { ',', ';', '/', '|' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 2) yield break;
+
+            foreach (var part in parts)
+            {
+                foreach (var candidate in Yield(part)) yield return candidate;
+
+                // "English (IELTS 7.0 - C1)" → "English"
+                var parenthesis = part.IndexOf('(');
+                if (parenthesis > 0)
+                {
+                    foreach (var candidate in Yield(part[..parenthesis])) yield return candidate;
+                }
+            }
+        }
+
+        /// <summary>
+        /// "Seçiniz" tipi boş seçenekleri tanır. Bunu kaçırmak sessiz bir hataya yol açıyor:
+        /// yer tutucu gerçek bir cevap sanılırsa alan "zaten dolu" diye atlanıyor ve zorunlu
+        /// olsa bile raporun "boş kalanlar" listesine girmiyor — form eksik gönderiliyor.
+        /// </summary>
         private static bool IsPlaceholderOption(string text)
         {
             var t = FieldRules.Normalize(text).Trim();
-            return t.Length == 0 ||
-                   t is "select" or "select one" or "choose" or "please select" or "seciniz" or "secim yapiniz";
+
+            if (t.Length == 0) return true;
+
+            string[] exact =
+            {
+                "select", "select one", "select an option", "choose", "choose one",
+                "please select", "please choose", "none", "n a",
+                "seciniz", "secim yapiniz", "lutfen seciniz",
+                "bir opsiyon secin", "bir opsiyon seciniz",
+                "bir secenek secin", "bir secenek seciniz", "sec"
+            };
+
+            return exact.Contains(t);
         }
 
         // --- Radio grupları ----------------------------------------------------
