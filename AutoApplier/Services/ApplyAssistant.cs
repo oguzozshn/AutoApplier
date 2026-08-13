@@ -193,6 +193,8 @@ namespace AutoApplier.Services
 
         private bool Navigate(string url)
         {
+            if (!EnsureBrowserAlive()) return false;
+
             try
             {
                 _driver!.Navigate().GoToUrl(url);
@@ -206,20 +208,70 @@ namespace AutoApplier.Services
             }
         }
 
+        /// <summary>
+        /// Tarayıcı penceresi kapatılırsa oturum ölüyor ve sonraki her komut "invalid session id"
+        /// ile patlıyor. Uygulama bunu fark etmezse kuyruktaki tüm ilanlar sırayla boşa geçiyor;
+        /// o yüzden her ilandan önce oturumu yokluyor, ölmüşse tarayıcıyı yeniden açıyoruz.
+        /// Chrome profili kalıcı olduğu için LinkedIn oturumu korunuyor.
+        /// </summary>
+        private bool EnsureBrowserAlive()
+        {
+            if (_driver != null && IsSessionAlive(_driver)) return true;
+
+            Console.WriteLine("Tarayıcı oturumu kapanmış. Yeniden başlatılıyor...");
+
+            try { _driver?.Quit(); } catch { }
+            try { _driver?.Dispose(); } catch { }
+            _driver = null;
+
+            StartBrowser();
+
+            if (_driver == null)
+            {
+                Console.WriteLine("Tarayıcı yeniden açılamadı. Asistandan çıkıp tekrar dene.");
+                return false;
+            }
+
+            Console.WriteLine("Tarayıcı yeniden açıldı.");
+            return true;
+        }
+
+        private static bool IsSessionAlive(IWebDriver driver)
+        {
+            try
+            {
+                _ = driver.WindowHandles.Count;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private void StartBrowser()
         {
             var options = new ChromeOptions();
             options.AddArgument("--start-maximized");
             options.AddExcludedArgument("enable-automation");
 
+            // Chrome kendi tanılama günlüğünü stderr'e basıyor (google_apis, mojo, WidgetHost...).
+            // Bu satırlar konsolu doldurup asistanın raporunu okunmaz hale getiriyordu.
+            options.AddArgument("--log-level=3");
+            options.AddExcludedArgument("enable-logging");
+
             // Kalıcı profil: LinkedIn oturumu her çalıştırmada tekrar açılmasın diye.
             var profileDir = Path.Combine(AppPaths.DataDir, "chrome-profile");
             Directory.CreateDirectory(profileDir);
             options.AddArgument($"--user-data-dir={profileDir}");
 
+            var service = ChromeDriverService.CreateDefaultService();
+            service.SuppressInitialDiagnosticInformation = true;
+            service.HideCommandPromptWindow = true;
+
             try
             {
-                _driver = new ChromeDriver(options);
+                _driver = new ChromeDriver(service, options);
             }
             catch (Exception ex)
             {
