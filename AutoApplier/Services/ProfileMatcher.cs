@@ -18,6 +18,7 @@ namespace AutoApplier.Services
             if (config.Profiles.Count == 0) return null;
 
             var haystack = $"{job.Title} {job.Company}".ToLowerInvariant();
+            var location = job.Location.ToLowerInvariant();
 
             PositionProfile? best = null;
             var bestScore = 0;
@@ -34,6 +35,18 @@ namespace AutoApplier.Services
                     {
                         // Uzun anahtar kelime daha spesifiktir: "asp.net" > "api".
                         score += keyword.Trim().Length;
+                    }
+                }
+
+                foreach (var place in profile.MatchLocations)
+                {
+                    if (string.IsNullOrWhiteSpace(place)) continue;
+
+                    if (location.Contains(place.Trim().ToLowerInvariant()))
+                    {
+                        // Konum, başlıktan ağır basmalı: aynı teknolojinin yurtdışındaki ilanı
+                        // yerel profille aynı puanı alırsa yanlış (sponsorluk) cevabı gider.
+                        score += place.Trim().Length * 3;
                     }
                 }
 
@@ -101,6 +114,10 @@ namespace AutoApplier.Services
                 Set(answers, AnswerKeys.ExpectedSalary, profile.ExpectedSalary);
                 Set(answers, AnswerKeys.NoticePeriod, profile.NoticePeriod);
                 Set(answers, AnswerKeys.StartDate, profile.StartDate);
+                // Ülkeye bağlı cevaplar: yurtdışı profillerinde sponsorluk cevabı değişiyor.
+                Set(answers, AnswerKeys.WorkAuthorization, profile.WorkAuthorization);
+                Set(answers, AnswerKeys.Sponsorship, profile.RequiresSponsorship);
+
                 Set(answers, AnswerKeys.Summary, FillPlaceholders(profile.Summary, job, personal));
                 Set(answers, AnswerKeys.CoverLetter, FillPlaceholders(profile.CoverLetter, job, personal));
 

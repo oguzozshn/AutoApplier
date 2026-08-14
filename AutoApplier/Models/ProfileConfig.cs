@@ -151,6 +151,14 @@ namespace AutoApplier.Models
         /// <summary>İlan başlığında/şirket adında bunlardan biri geçerse bu profil seçilir.</summary>
         public List<string> MatchKeywords { get; set; } = new();
 
+        /// <summary>
+        /// İlanın konumunda bunlardan biri geçerse bu profil öne çıkar. Aynı pozisyon için
+        /// ülkeye göre farklı cevaplar vermek gerekiyor (sponsorluk, ön yazı dili), bunu
+        /// başlıktan anlamak mümkün değil. Konum eşleşmesi başlık eşleşmesinden ağır basar:
+        /// "Almanya'daki .NET ilanı" için yurtdışı profili, yerel .NET profilini yenmeli.
+        /// </summary>
+        public List<string> MatchLocations { get; set; } = new();
+
         /// <summary>Bu pozisyon için yüklenecek CV dosyasının tam yolu.</summary>
         public string ResumePath { get; set; } = "";
 
@@ -163,6 +171,15 @@ namespace AutoApplier.Models
 
         public List<string> Skills { get; set; } = new();
         public string Summary { get; set; } = "";
+
+        /// <summary>
+        /// Çalışma izni ve sponsorluk cevapları ülkeye göre değişiyor: Türkiye'deki bir ilan için
+        /// "iznim var / sponsorluk gerekmez" doğruyken yurtdışındaki aynı sorulara bu cevap yanlış.
+        /// Boş bırakılırsa Personal altındaki genel cevap kullanılır; doldurulursa onu ezer.
+        /// </summary>
+        public string WorkAuthorization { get; set; } = "";
+
+        public string RequiresSponsorship { get; set; } = "";
 
         /// <summary>{position}, {company} ve {name} yer tutucuları başvuru anında doldurulur.</summary>
         public string CoverLetter { get; set; } = "";
