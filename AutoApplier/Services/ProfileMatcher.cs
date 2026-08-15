@@ -69,6 +69,21 @@ namespace AutoApplier.Services
             return fallback ?? config.Profiles[0];
         }
 
+        /// <summary>
+        /// İlan yurtdışında mı. Ayrı bir ülke listesi tutmak yerine profillerdeki MatchLocations
+        /// girdileri kullanılıyor: kullanıcı yurtdışı profiline hangi ülkeleri yazdıysa
+        /// "yurtdışı" tanımı da odur, iki liste birbirinden ayrı düşemez.
+        /// </summary>
+        public static bool IsAbroad(ProfileConfig config, JobListing job)
+        {
+            var location = job.Location.ToLowerInvariant();
+
+            return config.Profiles
+                .SelectMany(p => p.MatchLocations)
+                .Where(place => !string.IsNullOrWhiteSpace(place))
+                .Any(place => location.Contains(place.Trim().ToLowerInvariant()));
+        }
+
         /// <summary>Seçilen profili kişisel bilgilerle birleştirip kanonik cevap sözlüğünü kurar.</summary>
         public static ResolvedProfile Resolve(ProfileConfig config, JobListing job)
         {

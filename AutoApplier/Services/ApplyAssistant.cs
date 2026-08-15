@@ -128,8 +128,13 @@ namespace AutoApplier.Services
                         Console.WriteLine("Elendi — bu ilan bir daha karşına çıkmayacak.");
                         return;
 
-                    case "n":
+                    // Boş Enter bilerek "geç" saymıyor: ilanı açmak için basılan Enter'ın
+                    // ikincisi buraya düşüp ilanı sessizce atlıyordu.
                     case "":
+                        Console.WriteLine("[d] doldur, [t] başvurdum, [x] ilgilenmiyorum, [n] sonraki, [q] çık");
+                        break;
+
+                    case "n":
                         if (formFilled && AskApplied())
                         {
                             _store.MarkProcessed(job.JobId);
