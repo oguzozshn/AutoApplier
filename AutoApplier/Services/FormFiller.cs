@@ -104,7 +104,7 @@ namespace AutoApplier.Services
 
                     // Zaten dolu olan alanı ezmeyelim — site kendi doldurmuş olabilir.
                     var existing = element.GetAttribute("value");
-                    if (!string.IsNullOrWhiteSpace(existing))
+                    if (!string.IsNullOrWhiteSpace(existing) && !IsDialCodeOnly(existing, normalized))
                     {
                         report.Skipped.Add($"{Describe(label)} — zaten dolu ({Truncate(existing, 40)})");
                         continue;
@@ -130,6 +130,24 @@ namespace AutoApplier.Services
                     report.Skipped.Add($"Alan doldurulamadı: {ex.Message}");
                 }
             }
+        }
+
+        /// <summary>
+        /// Telefon alanları sık sık ülke koduyla ("+90") önden doldurulmuş geliyor. Bu bir cevap
+        /// değil, numaranın başlangıcı — "zaten dolu" sayılırsa numara hiç yazılmıyor ve alan
+        /// sessizce eksik kalıyor.
+        ///
+        /// Kontrol bilerek dar tutuldu: yalnızca etiketi telefon kuralına düşen alanlarda ve
+        /// yalnızca değer "+" ile birkaç rakamdan ibaretse geçerli. Aksi halde "ülke kodu"
+        /// alanındaki doğru "+90" değerinin üstüne şehir/ülke cevabı yazılabilirdi.
+        /// </summary>
+        private static bool IsDialCodeOnly(string existing, string normalizedLabel)
+        {
+            if (FieldRules.MatchKey(normalizedLabel) != AnswerKeys.Phone) return false;
+
+            var digitsOnly = new string(existing.Where(char.IsLetterOrDigit).ToArray());
+
+            return digitsOnly.Length <= 4 && digitsOnly.All(char.IsDigit);
         }
 
         // --- Açılır listeler (gerçek <select>) ---------------------------------

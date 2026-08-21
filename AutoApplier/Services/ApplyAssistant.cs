@@ -111,7 +111,7 @@ namespace AutoApplier.Services
                 switch (command)
                 {
                     case "d":
-                        SwitchToNewestTab();
+                        SwitchToFormTab();
                         FillCurrentPage(profile);
                         formFilled = true;
                         break;
@@ -128,8 +128,13 @@ namespace AutoApplier.Services
                         Console.WriteLine("Elendi — bu ilan bir daha karşına çıkmayacak.");
                         return;
 
-                    case "n":
+                    // Boş Enter bilerek "geç" saymıyor: ilanı açmak için basılan Enter'ın
+                    // ikincisi buraya düşüp ilanı sessizce atlıyordu.
                     case "":
+                        Console.WriteLine("[d] doldur, [t] başvurdum, [x] ilgilenmiyorum, [n] sonraki, [q] çık");
+                        break;
+
+                    case "n":
                         if (formFilled && AskApplied())
                         {
                             _store.MarkProcessed(job.JobId);
@@ -205,23 +210,73 @@ namespace AutoApplier.Services
             return answer is "e" or "evet" or "y" or "yes";
         }
 
-        /// <summary>Başvuru butonu yeni sekmede açılmış olabilir; en son açılan sekmeye geç.</summary>
-        private void SwitchToNewestTab()
+        /// <summary>
+        /// Formun bulunduğu sekmeye geçer: en çok doldurulabilir alanı olan sekme kazanır.
+        ///
+        /// Önce "en son açılan sekme" varsayılıyordu ama başvuru akışları bunu bozuyor: ilan
+        /// sayfası yeni sekmede açılıp form ilk sekmede kalabiliyor, ya da site araya sekme
+        /// açıyor. O durumda doldurucu iş tanımı sayfasında çalışıp "hiçbir alan doldurulamadı"
+        /// diyordu — form ekranın önünde dururken.
+        /// </summary>
+        private void SwitchToFormTab()
         {
             if (_driver == null) return;
 
             try
             {
                 var handles = _driver.WindowHandles;
-                if (handles.Count > 1 && _driver.CurrentWindowHandle != handles[^1])
+                if (handles.Count <= 1) return;
+
+                var current = _driver.CurrentWindowHandle;
+                var bestHandle = current;
+                var bestScore = -1;
+
+                foreach (var handle in handles)
                 {
-                    _driver.SwitchTo().Window(handles[^1]);
-                    Console.WriteLine($"Yeni sekmeye geçildi: {_driver.Url}");
+                    try
+                    {
+                        _driver.SwitchTo().Window(handle);
+                        var score = CountFillableFields();
+
+                        // Eşitlikte sonraki sekme kazanır: başvuru genelde ileri doğru açılıyor.
+                        if (score >= bestScore)
+                        {
+                            bestScore = score;
+                            bestHandle = handle;
+                        }
+                    }
+                    catch (Exception) { }
+                }
+
+                _driver.SwitchTo().Window(bestHandle);
+
+                if (bestHandle != current)
+                {
+                    Console.WriteLine($"Form sekmesine geçildi ({bestScore} alan): {_driver.Url}");
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Sekme değiştirilemedi: {ex.Message}");
+            }
+        }
+
+        /// <summary>Sayfadaki görünür ve doldurulabilir alan sayısı.</summary>
+        private int CountFillableFields()
+        {
+            try
+            {
+                var result = ((IJavaScriptExecutor)_driver!).ExecuteScript("""
+                    return [...document.querySelectorAll(
+                        "input:not([type=hidden]):not([type=submit]):not([type=button]), select, textarea")]
+                        .filter(e => e.offsetParent !== null && !e.disabled && !e.readOnly).length;
+                    """);
+
+                return Convert.ToInt32(result);
+            }
+            catch
+            {
+                return 0;
             }
         }
 

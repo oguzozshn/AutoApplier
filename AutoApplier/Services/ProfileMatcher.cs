@@ -38,16 +38,23 @@ namespace AutoApplier.Services
                     }
                 }
 
-                foreach (var place in profile.MatchLocations)
-                {
-                    if (string.IsNullOrWhiteSpace(place)) continue;
+                var places = profile.MatchLocations
+                    .Where(p => !string.IsNullOrWhiteSpace(p))
+                    .Select(p => p.Trim().ToLowerInvariant())
+                    .ToList();
 
-                    if (location.Contains(place.Trim().ToLowerInvariant()))
-                    {
-                        // Konum, başlıktan ağır basmalı: aynı teknolojinin yurtdışındaki ilanı
-                        // yerel profille aynı puanı alırsa yanlış (sponsorluk) cevabı gider.
-                        score += place.Trim().Length * 3;
-                    }
+                if (places.Count > 0)
+                {
+                    var matched = places.Where(place => location.Contains(place)).ToList();
+
+                    // Konum listesi tanımlıysa şarttır, bonus değil: yurtdışı profilinin anahtar
+                    // kelimeleri yerel profillerin hepsini kapsadığı için, konum tutmadığında da
+                    // kazanıp Türkiye'deki ilana "sponsorluk gerekiyor" cevabı yazdırıyordu.
+                    if (matched.Count == 0) continue;
+
+                    // Tuttuğunda ağır bassın: aynı teknolojinin yurtdışındaki ilanında
+                    // yerel profil değil yurtdışı profili kazanmalı.
+                    score += matched.Sum(place => place.Length) * 3;
                 }
 
                 if (score > bestScore)
@@ -67,6 +74,21 @@ namespace AutoApplier.Services
                 .FirstOrDefault(p => p.Name.Equals(config.DefaultProfile, StringComparison.OrdinalIgnoreCase));
 
             return fallback ?? config.Profiles[0];
+        }
+
+        /// <summary>
+        /// İlan yurtdışında mı. Ayrı bir ülke listesi tutmak yerine profillerdeki MatchLocations
+        /// girdileri kullanılıyor: kullanıcı yurtdışı profiline hangi ülkeleri yazdıysa
+        /// "yurtdışı" tanımı da odur, iki liste birbirinden ayrı düşemez.
+        /// </summary>
+        public static bool IsAbroad(ProfileConfig config, JobListing job)
+        {
+            var location = job.Location.ToLowerInvariant();
+
+            return config.Profiles
+                .SelectMany(p => p.MatchLocations)
+                .Where(place => !string.IsNullOrWhiteSpace(place))
+                .Any(place => location.Contains(place.Trim().ToLowerInvariant()));
         }
 
         /// <summary>Seçilen profili kişisel bilgilerle birleştirip kanonik cevap sözlüğünü kurar.</summary>

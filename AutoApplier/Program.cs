@@ -147,6 +147,14 @@ namespace AutoApplier
 
             Console.WriteLine();
             Console.WriteLine($"Durum: {pending.Count} bekleyen  |  {store.AppliedCount} başvuruldu  |  {store.DismissedCount} elendi");
+
+            pending = FilterByRegion(pending, profiles);
+            if (pending.Count == 0)
+            {
+                Console.WriteLine("Bu bölgede bekleyen ilan yok.");
+                return;
+            }
+
             Console.Write($"Kaç ilanla ilgilenelim? [hepsi] > ");
             var input = (Console.ReadLine() ?? "").Trim();
 
@@ -158,6 +166,29 @@ namespace AutoApplier
             assistant.Run(jobs);
 
             Export(store);
+        }
+
+        /// <summary>
+        /// Türkiye ve yurtdışı başvuruları farklı zihin durumları: yurtdışında sponsorluk,
+        /// dil ve saat dilimi soruları var. Karışık bir kuyrukta gezmek yerine bölge seçilebiliyor.
+        /// </summary>
+        private static List<JobListing> FilterByRegion(List<JobListing> pending, ProfileConfig profiles)
+        {
+            var abroad = pending.Count(j => ProfileMatcher.IsAbroad(profiles, j));
+            var local = pending.Count - abroad;
+
+            Console.WriteLine();
+            Console.WriteLine($"1) Hepsi ({pending.Count})   2) Türkiye ({local})   3) Yurtdışı ({abroad})");
+            Console.Write("Bölge [1] > ");
+
+            var choice = (Console.ReadLine() ?? "").Trim();
+
+            return choice switch
+            {
+                "2" => pending.Where(j => !ProfileMatcher.IsAbroad(profiles, j)).ToList(),
+                "3" => pending.Where(j => ProfileMatcher.IsAbroad(profiles, j)).ToList(),
+                _ => pending
+            };
         }
 
         // --- 3) Dışa aktarma ---------------------------------------------------
