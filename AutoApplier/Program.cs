@@ -22,6 +22,7 @@ namespace AutoApplier
                 Console.WriteLine("3) Kaydedilen ilanları tekrar dışa aktar (CSV / Markdown)");
                 Console.WriteLine("4) Profil eşleşmesini test et (hangi ilana hangi profil?)");
                 Console.WriteLine("5) Profile uymayan ilanları topluca ele");
+                Console.WriteLine("6) İlanlar hâlâ açık mı kontrol et (kapananları eler)");
                 Console.WriteLine("0) Çıkış");
                 Console.Write("Seçim > ");
 
@@ -49,6 +50,10 @@ namespace AutoApplier
 
                         case "5":
                             DismissUnmatched();
+                            break;
+
+                        case "6":
+                            await DismissClosedAsync();
                             break;
 
                         case "0":
@@ -155,6 +160,13 @@ namespace AutoApplier
                 return;
             }
 
+            pending = FilterByCompany(pending);
+            if (pending.Count == 0)
+            {
+                Console.WriteLine("Bu süzgeçte bekleyen ilan yok.");
+                return;
+            }
+
             Console.Write($"Kaç ilanla ilgilenelim? [hepsi] > ");
             var input = (Console.ReadLine() ?? "").Trim();
 
@@ -189,6 +201,32 @@ namespace AutoApplier
                 "3" => pending.Where(j => ProfileMatcher.IsAbroad(profiles, j)).ToList(),
                 _ => pending
             };
+        }
+
+        /// <summary>
+        /// Öncelikli şirket süzgeci. Kuyruk yüzlerce ilana çıkınca hepsini gezmek pratik
+        /// değil; tanıdığın şirketlerle başlamak isteyebilirsin. Liste config/companies.json
+        /// içinde ve elle düzenlenebilir.
+        /// </summary>
+        private static List<JobListing> FilterByCompany(List<JobListing> pending)
+        {
+            var companies = ConfigService.LoadOrCreate(
+                AppPaths.CompaniesFile, CompanyConfig.CreateDefault, out var created);
+
+            if (created)
+            {
+                Console.WriteLine();
+                Console.WriteLine($"Öncelikli şirket listesi oluşturuldu: {AppPaths.CompaniesFile}");
+            }
+
+            var preferred = pending.Where(j => companies.Matches(j.Company)).ToList();
+            if (preferred.Count == 0) return pending;
+
+            Console.WriteLine();
+            Console.WriteLine($"1) Tüm şirketler ({pending.Count})   2) Sadece öncelikli şirketler ({preferred.Count})");
+            Console.Write("Şirket [1] > ");
+
+            return (Console.ReadLine() ?? "").Trim() == "2" ? preferred : pending;
         }
 
         // --- 3) Dışa aktarma ---------------------------------------------------
@@ -261,6 +299,91 @@ namespace AutoApplier
             }
 
             Console.WriteLine("Yanlış eşleşenler varsa profiles.json içindeki MatchKeywords listelerini düzenle.");
+        }
+
+        // --- 6) Kapanmış ilanları ele -------------------------------------------
+
+        /// <summary>
+        /// Bekleyen ilanları LinkedIn'den tek tek yoklayıp kapanmış olanları eler.
+        /// En eskiden başlıyor: kapanma ihtimali en yüksek olanlar onlar.
+        /// </summary>
+        private static async Task DismissClosedAsync()
+        {
+            var store = new JobStore();
+            store.Load();
+
+            var pending = store.Pending
+                .OrderBy(j => j.PostedDate ?? DateTime.MinValue)
+                .ToList();
+
+            if (pending.Count == 0)
+            {
+                Console.WriteLine("Bekleyen ilan yok.");
+                return;
+            }
+
+            Console.WriteLine();
+            Console.Write("Kaç günden eski ilanlar kontrol edilsin? [7] > ");
+
+            var input = (Console.ReadLine() ?? "").Trim();
+            var days = int.TryParse(input, out var parsed) && parsed >= 0 ? parsed : 7;
+            var cutoff = DateTime.Now.Date.AddDays(-days);
+
+            // Tarihi bilinmeyen ilan da kontrol edilir: yaşı belli değilse kapanmış olabilir.
+            var targets = pending
+                .Where(j => j.PostedDate == null || j.PostedDate.Value.Date <= cutoff)
+                .ToList();
+
+            if (targets.Count == 0)
+            {
+                Console.WriteLine($"{days} günden eski bekleyen ilan yok.");
+                return;
+            }
+
+            var minutes = Math.Ceiling(targets.Count * 1.8 / 60);
+            Console.WriteLine($"{pending.Count} bekleyen ilanın {targets.Count} tanesi {days} günden eski.");
+            Console.WriteLine($"Her biri için bir istek atılacak; tahmini süre ~{minutes:0} dakika.");
+            Console.Write("Başlansın mı? [e/h] > ");
+
+            if ((Console.ReadLine() ?? "").Trim().ToLowerInvariant() is not ("e" or "evet" or "y" or "yes"))
+            {
+                Console.WriteLine("Vazgeçildi.");
+                return;
+            }
+
+            using var checker = new JobStatusChecker();
+
+            var closed = 0;
+            var unknown = 0;
+
+            for (var i = 0; i < targets.Count; i++)
+            {
+                var job = targets[i];
+                var result = await checker.IsClosedAsync(job.Url);
+
+                if (result == true)
+                {
+                    store.MarkDismissed(job.JobId);
+                    closed++;
+                    Console.WriteLine($"  kapanmış: {Trim(job.Title, 42),-44} {job.Company}");
+                }
+                else if (result == null)
+                {
+                    unknown++;
+                }
+
+                Console.Write($"\r  {i + 1}/{targets.Count} kontrol edildi, {closed} kapalı...");
+            }
+
+            store.Save();
+
+            Console.WriteLine();
+            Console.WriteLine($"{targets.Count} ilan kontrol edildi, {closed} tanesi kapanmış — elendi. Kuyrukta {store.Pending.Count} ilan kaldı.");
+
+            if (unknown > 0)
+            {
+                Console.WriteLine($"{unknown} ilanda karar verilemedi (ağ hatası ya da hız sınırı); onlara dokunulmadı.");
+            }
         }
 
         // --- 5) Toplu eleme -----------------------------------------------------
