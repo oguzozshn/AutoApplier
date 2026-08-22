@@ -4,12 +4,22 @@ using AutoApplier.Models;
 
 namespace AutoApplier.Services
 {
+    /// <summary>
+    /// Cevapsız kalan serbest metin alanı. Elementin kendisi tutuluyor ki doldurucu bittikten
+    /// sonra (yapay zekâ taslağı onaylanınca) alan gerçekten doldurulabilsin.
+    /// </summary>
+    public record UnansweredField(IWebElement Element, string Question, bool Required);
+
     /// <summary>Bir sayfada ne doldurulduğunun / neyin atlandığının raporu.</summary>
     public class FillReport
     {
         public List<string> Filled { get; } = new();
         public List<string> Skipped { get; } = new();
         public List<string> RequiredLeftEmpty { get; } = new();
+
+        /// <summary>Kural tablosunun cevaplayamadığı serbest metin soruları.</summary>
+        public List<UnansweredField> Unanswered { get; } = new();
+
         public bool ResumeUploaded { get; set; }
 
         public bool NeedsAttention => RequiredLeftEmpty.Count > 0;
@@ -179,7 +189,7 @@ namespace AutoApplier.Services
                     var value = ResolveValue(normalized, profile);
                     if (value == null)
                     {
-                        RecordUnanswered(element, label, report);
+                        RecordUnanswered(element, label, report, freeTextCandidate: true);
                         continue;
                     }
 
@@ -768,9 +778,12 @@ namespace AutoApplier.Services
 
         // --- Yardımcılar -------------------------------------------------------
 
-        private void RecordUnanswered(IWebElement element, string label, FillReport report)
+        private void RecordUnanswered(IWebElement element, string label, FillReport report,
+            bool freeTextCandidate = false)
         {
-            if (IsRequired(element))
+            var required = IsRequired(element);
+
+            if (required)
             {
                 report.RequiredLeftEmpty.Add(Describe(label));
             }
@@ -778,6 +791,38 @@ namespace AutoApplier.Services
             {
                 report.Skipped.Add($"{Describe(label)} — eşleşen cevap yok");
             }
+
+            if (freeTextCandidate && IsFreeText(element, label))
+            {
+                report.Unanswered.Add(new UnansweredField(element, QuestionText(label), required));
+            }
+        }
+
+        /// <summary>
+        /// Alan serbest metin mi. Textarea her zaman öyle; tek satırlık girdilerde etiketin
+        /// soru olması aranıyor, yoksa "Şehir" gibi kısa alanlar da yapay zekâya gider.
+        /// </summary>
+        private static bool IsFreeText(IWebElement element, string label)
+        {
+            try
+            {
+                if (string.Equals(element.TagName, "textarea", StringComparison.OrdinalIgnoreCase)) return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+
+            var question = QuestionText(label);
+            return question.Contains('?') || question.Length > 40;
+        }
+
+        /// <summary>Etiketin modele sorulacak hâli — Describe'ın aksine kısaltılmıyor.</summary>
+        private static string QuestionText(string label)
+        {
+            var first = label.Split('|', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.Trim();
+            var text = string.IsNullOrWhiteSpace(first) ? label.Trim() : first;
+            return text.Replace('\n', ' ').Replace('\r', ' ').Trim();
         }
 
         private void RecordRequired(IWebElement element, string label, FillReport report)
