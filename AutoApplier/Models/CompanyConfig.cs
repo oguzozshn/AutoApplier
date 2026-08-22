@@ -15,11 +15,11 @@ namespace AutoApplier.Models
         {
             if (string.IsNullOrWhiteSpace(company)) return false;
 
-            var haystack = company.ToLowerInvariant();
+            var normalized = company.ToLowerInvariant();
 
             return Preferred.Any(name =>
                 !string.IsNullOrWhiteSpace(name) &&
-                haystack.Contains(name.Trim().ToLowerInvariant()));
+                normalized.Contains(name.Trim().ToLowerInvariant()));
         }
 
         public static CompanyConfig CreateDefault() => new()

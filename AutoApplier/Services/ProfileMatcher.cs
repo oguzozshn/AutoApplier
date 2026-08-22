@@ -17,7 +17,8 @@ namespace AutoApplier.Services
             matchedByKeyword = false;
             if (config.Profiles.Count == 0) return null;
 
-            var haystack = $"{job.Title} {job.Company}".ToLowerInvariant();
+            // İlan başlığı ve şirket adı tek metinde: anahtar kelimeler ikisinde de aranıyor.
+            var searchText = $"{job.Title} {job.Company}".ToLowerInvariant();
             var location = job.Location.ToLowerInvariant();
 
             PositionProfile? best = null;
@@ -31,7 +32,7 @@ namespace AutoApplier.Services
                 {
                     if (string.IsNullOrWhiteSpace(keyword)) continue;
 
-                    if (haystack.Contains(keyword.Trim().ToLowerInvariant()))
+                    if (searchText.Contains(keyword.Trim().ToLowerInvariant()))
                     {
                         // Uzun anahtar kelime daha spesifiktir: "asp.net" > "api".
                         score += keyword.Trim().Length;
