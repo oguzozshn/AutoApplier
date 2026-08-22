@@ -86,6 +86,21 @@ namespace AutoApplier.Services
                     }
                 }
 
+                if (JobStatusChecker.LooksClosed(SafePageSource()))
+                {
+                    Console.WriteLine();
+                    Console.WriteLine("!! Bu ilan artık başvuru kabul etmiyor (LinkedIn kapanmış olarak işaretlemiş).");
+                    Console.Write("[x] ele ve devam et  [Enter] yine de aç > ");
+
+                    if ((Console.ReadLine() ?? "").Trim().ToLowerInvariant() == "x")
+                    {
+                        _store.MarkDismissed(job.JobId);
+                        _store.Save();
+                        Console.WriteLine("Elendi.");
+                        continue;
+                    }
+                }
+
                 try
                 {
                     HandleJob(job, profile);
@@ -325,6 +340,13 @@ namespace AutoApplier.Services
             {
                 return 0;
             }
+        }
+
+        /// <summary>Sayfa kaynağı — oturum ölmüşse patlamak yerine null döner.</summary>
+        private string? SafePageSource()
+        {
+            try { return _driver?.PageSource; }
+            catch { return null; }
         }
 
         private bool Navigate(string url)

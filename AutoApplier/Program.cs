@@ -22,6 +22,7 @@ namespace AutoApplier
                 Console.WriteLine("3) Kaydedilen ilanları tekrar dışa aktar (CSV / Markdown)");
                 Console.WriteLine("4) Profil eşleşmesini test et (hangi ilana hangi profil?)");
                 Console.WriteLine("5) Profile uymayan ilanları topluca ele");
+                Console.WriteLine("6) Kapanmış ilanları tespit et ve ele");
                 Console.WriteLine("0) Çıkış");
                 Console.Write("Seçim > ");
 
@@ -49,6 +50,10 @@ namespace AutoApplier
 
                         case "5":
                             DismissUnmatched();
+                            break;
+
+                        case "6":
+                            await DismissClosedAsync();
                             break;
 
                         case "0":
@@ -261,6 +266,72 @@ namespace AutoApplier
             }
 
             Console.WriteLine("Yanlış eşleşenler varsa profiles.json içindeki MatchKeywords listelerini düzenle.");
+        }
+
+        // --- 6) Kapanmış ilanları ele -------------------------------------------
+
+        /// <summary>
+        /// Bekleyen ilanları LinkedIn'den tek tek yoklayıp kapanmış olanları eler.
+        /// En eskiden başlıyor: kapanma ihtimali en yüksek olanlar onlar.
+        /// </summary>
+        private static async Task DismissClosedAsync()
+        {
+            var store = new JobStore();
+            store.Load();
+
+            var pending = store.Pending
+                .OrderBy(j => j.PostedDate ?? DateTime.MinValue)
+                .ToList();
+
+            if (pending.Count == 0)
+            {
+                Console.WriteLine("Bekleyen ilan yok.");
+                return;
+            }
+
+            Console.WriteLine();
+            Console.WriteLine($"{pending.Count} bekleyen ilan var, en eskiden başlanacak.");
+            Console.WriteLine("Her ilan için bir istek atılıyor; 100 ilan yaklaşık 3 dakika sürer.");
+            Console.Write("Kaç ilan kontrol edilsin? [100] > ");
+
+            var input = (Console.ReadLine() ?? "").Trim();
+            var limit = int.TryParse(input, out var parsed) && parsed > 0 ? parsed : 100;
+
+            var targets = pending.Take(limit).ToList();
+
+            using var checker = new JobStatusChecker();
+
+            var closed = 0;
+            var unknown = 0;
+
+            for (var i = 0; i < targets.Count; i++)
+            {
+                var job = targets[i];
+                var result = await checker.IsClosedAsync(job.Url);
+
+                if (result == true)
+                {
+                    store.MarkDismissed(job.JobId);
+                    closed++;
+                    Console.WriteLine($"  kapanmış: {Trim(job.Title, 42),-44} {job.Company}");
+                }
+                else if (result == null)
+                {
+                    unknown++;
+                }
+
+                Console.Write($"\r  {i + 1}/{targets.Count} kontrol edildi, {closed} kapalı...");
+            }
+
+            store.Save();
+
+            Console.WriteLine();
+            Console.WriteLine($"{closed} ilan kapanmış olarak elendi. Kuyrukta {store.Pending.Count} ilan kaldı.");
+
+            if (unknown > 0)
+            {
+                Console.WriteLine($"{unknown} ilanda karar verilemedi (ağ hatası ya da hız sınırı); onlara dokunulmadı.");
+            }
         }
 
         // --- 5) Toplu eleme -----------------------------------------------------
