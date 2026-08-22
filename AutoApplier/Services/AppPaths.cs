@@ -17,6 +17,9 @@ namespace AutoApplier.Services
         /// <summary>Öncelikli şirketler listesi (bkz. CompanyConfig).</summary>
         public static string CompaniesFile => Path.Combine(ConfigDir, "companies.json");
 
+        /// <summary>Yerel yapay zekâ ayarları (bkz. AiConfig).</summary>
+        public static string AiFile => Path.Combine(ConfigDir, "ai.json");
+
         public static string JobsFile => Path.Combine(DataDir, "jobs.json");
         public static string JobsCsvFile => Path.Combine(DataDir, "jobs.csv");
         public static string JobsMarkdownFile => Path.Combine(DataDir, "jobs.md");
