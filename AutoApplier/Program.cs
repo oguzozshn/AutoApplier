@@ -37,7 +37,7 @@ namespace AutoApplier
                             break;
 
                         case "2":
-                            RunApplyAssistant();
+                            await RunApplyAssistantAsync();
                             break;
 
                         case "3":
@@ -127,7 +127,7 @@ namespace AutoApplier
 
         // --- 2) Başvuru asistanı -----------------------------------------------
 
-        private static void RunApplyAssistant()
+        private static async Task RunApplyAssistantAsync()
         {
             var profiles = ConfigService.LoadOrCreate(
                 AppPaths.ProfilesFile, ProfileConfig.CreateDefault, out var created);
@@ -175,7 +175,7 @@ namespace AutoApplier
                 : pending;
 
             using var assistant = new ApplyAssistant(profiles, store);
-            assistant.Run(jobs);
+            await assistant.RunAsync(jobs);
 
             Export(store);
         }

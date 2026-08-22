@@ -13,16 +13,23 @@ namespace AutoApplier.Services
         private readonly ProfileConfig _config;
         private readonly JobStore _store;
         private readonly FieldMemory _memory = new();
+        private readonly AnswerDrafter _drafter;
         private IWebDriver? _driver;
+
+        /// <summary>Son [d] çalıştırmasının raporu — [y] cevapsız soruları buradan alıyor.</summary>
+        private FillReport? _lastReport;
 
         public ApplyAssistant(ProfileConfig config, JobStore store)
         {
             _config = config;
             _store = store;
             _memory.Load();
+
+            var ai = ConfigService.LoadOrCreate(AppPaths.AiFile, AiConfig.CreateDefault, out _);
+            _drafter = new AnswerDrafter(ai);
         }
 
-        public void Run(List<JobListing> jobs)
+        public async Task RunAsync(List<JobListing> jobs)
         {
             if (jobs.Count == 0)
             {
@@ -103,7 +110,7 @@ namespace AutoApplier.Services
 
                 try
                 {
-                    HandleJob(job, profile);
+                    await HandleJobAsync(job, profile);
                 }
                 catch (OperationCanceledException)
                 {
@@ -117,12 +124,13 @@ namespace AutoApplier.Services
         }
 
         /// <summary>Tek bir ilan açıkken kullanıcı komutlarını işler.</summary>
-        private void HandleJob(JobListing job, ResolvedProfile profile)
+        private async Task HandleJobAsync(JobListing job, ResolvedProfile profile)
         {
             Console.WriteLine();
             Console.WriteLine("İlan açıldı. Tarayıcıda başvuru butonuna tıkla (dış siteye yönlendirebilir).");
             Console.WriteLine("Form ekrandayken:");
             Console.WriteLine("  [d] formu doldur   (çok adımlı formlarda her adımda tekrar bas)");
+            Console.WriteLine("  [y] cevapsız sorulara yapay zekâ ile taslak üret");
             Console.WriteLine("  [t] başvurdum — işaretle ve sonraki ilana geç");
             Console.WriteLine("  [x] ilgilenmiyorum — bir daha gösterme");
             Console.WriteLine("  [n] şimdilik geç (beklemede kalır)");
@@ -143,6 +151,10 @@ namespace AutoApplier.Services
                         SwitchToFormTab();
                         FillCurrentPage(profile);
                         formFilled = true;
+                        break;
+
+                    case "y":
+                        await DraftAnswersAsync(job, profile);
                         break;
 
                     case "t":
@@ -193,6 +205,7 @@ namespace AutoApplier.Services
             try
             {
                 report = filler.Fill(profile);
+                _lastReport = report;
             }
             catch (Exception ex)
             {
@@ -230,6 +243,108 @@ namespace AutoApplier.Services
 
             Console.WriteLine();
             Console.WriteLine("Formu kontrol et ve göndermeyi SEN yap. Bu araç gönder tuşuna basmaz.");
+        }
+
+        /// <summary>
+        /// Cevapsız serbest metin sorularına yerel modelle taslak üretir.
+        ///
+        /// Üretilen metin onay almadan forma YAZILMAZ: model, sende olmayan bir deneyimi
+        /// uydurabilir ve bu, başvuruda yanlış beyan olur. Karar her soruda sende.
+        /// </summary>
+        private async Task DraftAnswersAsync(JobListing job, ResolvedProfile profile)
+        {
+            if (!_drafter.Enabled)
+            {
+                Console.WriteLine($"Yapay zekâ kapalı. Açmak için {AppPaths.AiFile} içinde Enabled true yapılmalı.");
+                return;
+            }
+
+            if (_lastReport == null)
+            {
+                Console.WriteLine("Önce [d] ile formu doldur; cevapsız sorular ondan sonra belli oluyor.");
+                return;
+            }
+
+            var questions = _lastReport.Unanswered.Where(f => IsStillEmpty(f.Element)).ToList();
+
+            if (questions.Count == 0)
+            {
+                Console.WriteLine("Cevapsız serbest metin sorusu yok.");
+                return;
+            }
+
+            Console.WriteLine();
+            Console.WriteLine($"{questions.Count} soru icin taslak uretilecek (model: {_drafter.Model}).");
+
+            foreach (var field in questions)
+            {
+                Console.WriteLine();
+                Console.WriteLine(new string('-', 70));
+                Console.WriteLine((field.Required ? "[zorunlu] " : "") + field.Question);
+                Console.WriteLine("Taslak uretiliyor, bekle...");
+
+                var (text, error) = await _drafter.DraftAsync(job, profile, field.Question);
+
+                if (text == null)
+                {
+                    Console.WriteLine(error);
+                    return;
+                }
+
+                Console.WriteLine();
+                Console.WriteLine(text);
+                Console.WriteLine();
+                Console.Write("[e] forma yaz  [a] atla  [q] taslak uretmeyi birak > ");
+
+                var choice = (Console.ReadLine() ?? "").Trim().ToLowerInvariant();
+
+                if (choice == "q") return;
+                if (choice != "e") continue;
+
+                if (!TypeInto(field.Element, text))
+                {
+                    Console.WriteLine("Alana yazilamadi (sayfa degismis olabilir).");
+                    continue;
+                }
+
+                Console.WriteLine("Yazildi.");
+
+                // Onayladığın cevap hafızaya da giriyor: aynı soru bir daha modele sorulmaz.
+                _memory.Remember(FieldRules.Normalize(field.Question), field.Question, text, SafeHost());
+                _memory.Save();
+            }
+        }
+
+        private static bool IsStillEmpty(IWebElement element)
+        {
+            try
+            {
+                return element.Displayed && string.IsNullOrWhiteSpace(element.GetAttribute("value"));
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        private static bool TypeInto(IWebElement element, string text)
+        {
+            try
+            {
+                element.Clear();
+                element.SendKeys(text);
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        private string SafeHost()
+        {
+            try { return new Uri(_driver!.Url).Host; }
+            catch (Exception) { return ""; }
         }
 
         /// <summary>
@@ -442,6 +557,7 @@ namespace AutoApplier.Services
         {
             try
             {
+                _drafter.Dispose();
                 _driver?.Quit();
                 _driver?.Dispose();
             }
