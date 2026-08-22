@@ -44,6 +44,11 @@ daha hızlı hem de LinkedIn tarafında çok daha düşük profilli.
 | [FieldRules.cs](AutoApplier/Services/FieldRules.cs) | Etiket metni → hangi bilgi (kural tablosu) |
 | [ConfigService.cs](AutoApplier/Services/ConfigService.cs) | JSON ayar okuma; dosya yoksa örnek üretme |
 | [AppPaths.cs](AutoApplier/Services/AppPaths.cs) | `config/` ve `data/` yollarının tek kaynağı |
+| [FieldMemory.cs](AutoApplier/Services/FieldMemory.cs) | Elle doldurulan cevapları öğrenir (`data/field-memory.json`) |
+| [JobStatusChecker.cs](AutoApplier/Services/JobStatusChecker.cs) | İlan hâlâ açık mı — kapanma işaretini okur |
+| [JobDescriptionFetcher.cs](AutoApplier/Services/JobDescriptionFetcher.cs) | İlan metnini ilan sayfasından çeker |
+| [AnswerDrafter.cs](AutoApplier/Services/AnswerDrafter.cs) | Serbest metin sorularına taslak cevap üretir |
+| [OllamaClient.cs](AutoApplier/Services/OllamaClient.cs) | Yerel modele (Ollama) sohbet isteği |
 
 Ayar dosyaları çalışma dizinine göre çözülüyor (`AppPaths.Root = Directory.GetCurrentDirectory()`),
 yani `dotnet run` ile proje klasöründeyken düzenlediğin dosyalar yeniden derlemeden geçerli oluyor.
@@ -158,6 +163,42 @@ dürüstlük mekanizması: neyi yapamadığını saklamak yerine elle doldurman 
 
 Çok adımlı formlar için durum tutulmuyor; her adımda `d` komutuyla doldurucu yeniden çalışıyor.
 Başvuru butonu yeni sekme açarsa `d` komutu önce en son açılan sekmeye geçiyor.
+
+## Öğrenen hafıza ve yapay zekâ
+
+Kural tablosu yalnızca kanonik alanları biliyor (ad, e-posta, deneyim yılı). Şirkete özel
+sorular iki mekanizmayla karşılanıyor:
+
+**Hafıza** ([FieldMemory.cs](AutoApplier/Services/FieldMemory.cs)) — başvuruyu `t` ile
+işaretlediğinde formda duran cevaplar etiketleriyle birlikte `data/field-memory.json`
+dosyasına yazılır. Aynı etiket bir daha görülürse cevap hazır gelir. Yalnızca kural
+tablosunun bilmediği alanlar saklanır; şifre alanları hiç girmez.
+
+**Taslak üretme** ([AnswerDrafter.cs](AutoApplier/Services/AnswerDrafter.cs)) — `y`
+komutu, cevapsız kalan serbest metin sorularını yerel modele sorar. İlan metni
+[JobDescriptionFetcher](AutoApplier/Services/JobDescriptionFetcher.cs) ile ilan
+sayfasından bir kez çekilip `jobs.json`'a yazılır.
+
+Model makinede çalışıyor ([Ollama](https://ollama.com), varsayılan `qwen3:8b`): CV metni
+ve ilan açıklaması bilgisayardan çıkmaz, API anahtarı ve ücret yoktur. `config/ai.json`
+ile ayarlanır, varsayılan olarak kapalıdır.
+
+**Üretilen metin onay almadan forma yazılmaz.** Model, sende olmayan bir deneyimi
+uydurabilir; bu başvuruda yanlış beyan olur. Her soruda taslak ekrana basılır, kararı sen
+verirsin. Onayladığın cevap hafızaya da girer, aynı soru bir daha modele sorulmaz.
+
+Cevabın dili sorunun dilinden belirlenir: soruda Türkçeye özgü harf varsa Türkçe.
+
+## Kapanmış ilanlar
+
+Kuyrukta iki haftalık ilanlar birikiyor ve bir kısmı çoktan kapanmış oluyor. LinkedIn
+kapanan ilanlarda sayfaya `closed-job` bloğunu koyuyor; görünen metin sayfanın diline göre
+değiştiği için (`Artık başvuru kabul etmiyor` / `No longer accepting applications`) sınıf
+adına bakılıyor: `closed-job__flavor--closed`.
+
+Asistan ilanı açtığında bu işaret varsa uyarır. Menü 6 ise belli bir yaştan eski tüm
+bekleyen ilanları tarayıcı açmadan yoklar. Karar verilemeyen durumda (ağ hatası, hız
+sınırı) ilana dokunulmaz — emin olmadan elemek açık bir ilanı kaybettirir.
 
 ## Tarayıcı oturumu
 

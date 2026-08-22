@@ -36,6 +36,8 @@ Menü:
 | 2 | Başvuru asistanı: ilanları tek tek açar, profili eşleştirir, formu doldurur. |
 | 3 | Kayıtlı ilanları tekrar dışa aktarır. |
 | 4 | Hangi ilana hangi profilin seçildiğini gösterir (anahtar kelimeleri ayarlamak için). |
+| 5 | Hiçbir profile uymayan bekleyen ilanları topluca eler. |
+| 6 | Belli bir yaştan eski ilanların hâlâ açık olup olmadığını kontrol eder, kapananları eler. |
 
 ### İlk çalıştırma
 
@@ -123,8 +125,10 @@ olmalı (ör. `"how did you hear"`). Buradaki cevaplar diğer tüm kuralları ez
 | Komut | Ne yapar |
 |---|---|
 | `d` | O anda ekranda olan formu doldurur. Çok adımlı formlarda **her adımda tekrar bas**. |
-| `t` | İlanı "başvuruldu" olarak işaretler ve sonrakine geçer |
-| `n` | Sonraki ilana geçer |
+| `y` | Cevapsız kalan serbest metin sorularına yapay zekâ ile taslak üretir (onayınla yazılır) |
+| `t` | İlanı "başvuruldu" olarak işaretler, formdaki cevapları öğrenir ve sonrakine geçer |
+| `x` | İlanı eler — bir daha kuyruğa girmez |
+| `n` | Sonraki ilana geçer (ilan beklemede kalır) |
 | `q` | Asistandan çıkar |
 
 `d` komutundan sonra ekrana üç liste basılır: doldurulanlar, **zorunlu olup boş kalanlar**
