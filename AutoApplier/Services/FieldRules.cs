@@ -110,7 +110,7 @@ namespace AutoApplier.Services
             // --- Diğer ---
             new(AnswerKeys.HowDidYouHear, new[]
             {
-                "how did you hear", "referral source", "where did you find", "source", "nereden duydunuz"
+                "how did you hear", "hear about", "referral source", "where did you find", "source", "nereden duydunuz"
             }),
             new(AnswerKeys.Eeo, new[]
             {

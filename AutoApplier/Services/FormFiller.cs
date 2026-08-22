@@ -26,12 +26,19 @@ namespace AutoApplier.Services
     {
         private readonly IWebDriver _driver;
         private readonly ProfileConfig _config;
+        private readonly FieldMemory? _memory;
 
-        public FormFiller(IWebDriver driver, ProfileConfig config)
+        public FormFiller(IWebDriver driver, ProfileConfig config, FieldMemory? memory = null)
         {
             _driver = driver;
             _config = config;
+            _memory = memory;
         }
+
+        /// <summary>Doldurulabilir metin alanları — şifre alanları bilerek dışarıda.</summary>
+        private const string TextFieldSelector =
+            "input[type='text'], input[type='email'], input[type='tel'], " +
+            "input[type='url'], input[type='number'], input:not([type]), textarea";
 
         public FillReport Fill(ResolvedProfile profile)
         {
@@ -45,6 +52,68 @@ namespace AutoApplier.Services
             FillCustomDropdowns(profile, report);
 
             return report;
+        }
+
+        /// <summary>
+        /// Sayfada o an duran cevapları etiketleriyle birlikte okur. Başvuru tamamlandıktan
+        /// sonra çağrılıyor: elle doldurduğun alanlar bir dahaki forma hazır gelsin diye.
+        ///
+        /// Yalnızca kural tablosunun cevaplayamadığı alanlar dönüyor; ad, e-posta gibi zaten
+        /// bilinen alanları öğrenmenin faydası yok. Şifre alanları buraya hiç girmiyor,
+        /// çünkü seçici onları kapsamıyor.
+        /// </summary>
+        public List<(string Normalized, string Label, string Value)> CaptureAnswers()
+        {
+            var found = new List<(string Normalized, string Label, string Value)>();
+
+            void Consider(string label, string? value)
+            {
+                if (string.IsNullOrWhiteSpace(value)) return;
+
+                var normalized = FieldRules.Normalize(label);
+                if (string.IsNullOrWhiteSpace(normalized)) return;
+
+                // Kural tablosu zaten biliyorsa öğrenecek bir şey yok.
+                if (FieldRules.MatchKey(normalized) != null) return;
+
+                found.Add((normalized, Describe(label), value.Trim()));
+            }
+
+            foreach (var element in SafeFind(TextFieldSelector))
+            {
+                try
+                {
+                    if (!IsInteractable(element)) continue;
+                    Consider(GetLabelText(element), element.GetAttribute("value"));
+                }
+                catch (Exception) { }
+            }
+
+            foreach (var element in SafeFind("select"))
+            {
+                try
+                {
+                    if (!IsInteractable(element)) continue;
+
+                    var current = new SelectElement(element).SelectedOption?.Text?.Trim();
+                    if (string.IsNullOrWhiteSpace(current) || IsPlaceholderOption(current)) continue;
+
+                    Consider(GetLabelText(element), current);
+                }
+                catch (Exception) { }
+            }
+
+            foreach (var radio in SafeFind("input[type='radio']"))
+            {
+                try
+                {
+                    if (!IsInteractable(radio) || !radio.Selected) continue;
+                    Consider(GetGroupLabelText(radio), GetOwnLabelText(radio));
+                }
+                catch (Exception) { }
+            }
+
+            return found;
         }
 
         // --- CV yükleme --------------------------------------------------------
@@ -90,10 +159,7 @@ namespace AutoApplier.Services
 
         private void FillTextFields(ResolvedProfile profile, FillReport report)
         {
-            var selector = "input[type='text'], input[type='email'], input[type='tel'], " +
-                           "input[type='url'], input[type='number'], input:not([type]), textarea";
-
-            foreach (var element in SafeFind(selector))
+            foreach (var element in SafeFind(TextFieldSelector))
             {
                 try
                 {
@@ -183,6 +249,10 @@ namespace AutoApplier.Services
                     if (TrySelectOption(select, value, out var chosen))
                     {
                         report.Filled.Add($"{Describe(label)} = {chosen}");
+
+                        // Bağımlı listeler için soluklan: "Country" seçilmeden "State/Province"
+                        // seçenekleri yüklenmiyor. Beklemezsek sıradaki liste boş görünüyor.
+                        Thread.Sleep(400);
                     }
                     else
                     {
@@ -289,7 +359,9 @@ namespace AutoApplier.Services
                 "please select", "please choose", "none", "n a",
                 "seciniz", "secim yapiniz", "lutfen seciniz",
                 "bir opsiyon secin", "bir opsiyon seciniz",
-                "bir secenek secin", "bir secenek seciniz", "sec"
+                "bir secenek secin", "bir secenek seciniz", "sec",
+                "no selection", "no selection made", "not selected",
+                "secim yok", "secim yapin", "belirtilmemis", "hicbiri"
             };
 
             return exact.Contains(t);
@@ -489,6 +561,13 @@ namespace AutoApplier.Services
                     return pair.Value;
                 }
             }
+
+            // Öğrenilmiş cevap, kural tablosundan önce gelir: etiketin tamamına bakıp
+            // kaydedildiği için daha spesifiktir. "How many years ... with Microsoft Azure?"
+            // sorusu genel "how many years" kuralına düşüp yanlış sayıyı yazıyordu; bir kez
+            // elle cevaplandığında artık doğrusu hatırlanıyor.
+            var learned = _memory?.Lookup(normalizedLabel);
+            if (learned != null) return learned;
 
             var answerKey = FieldRules.MatchKey(normalizedLabel);
             if (answerKey == null) return null;

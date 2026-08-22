@@ -12,12 +12,14 @@ namespace AutoApplier.Services
     {
         private readonly ProfileConfig _config;
         private readonly JobStore _store;
+        private readonly FieldMemory _memory = new();
         private IWebDriver? _driver;
 
         public ApplyAssistant(ProfileConfig config, JobStore store)
         {
             _config = config;
             _store = store;
+            _memory.Load();
         }
 
         public void Run(List<JobListing> jobs)
@@ -70,7 +72,19 @@ namespace AutoApplier.Services
                     continue;
                 }
 
-                if (!Navigate(job.Url)) continue;
+                if (!Navigate(job.Url))
+                {
+                    // Eskiden burada sessizce sonraki ilana geçiliyordu: kullanıcı "aç" dediği
+                    // halde ilan atlanmış oluyordu ve sebebi ekranda kayboluyordu.
+                    Console.Write("İlan açılamadı. [Enter] tekrar dene  [n] sonraki ilan > ");
+                    var retry = (Console.ReadLine() ?? "").Trim().ToLowerInvariant();
+
+                    if (retry == "n" || !Navigate(job.Url))
+                    {
+                        Console.WriteLine("Bu ilan atlanıyor (beklemede kalır).");
+                        continue;
+                    }
+                }
 
                 try
                 {
@@ -120,6 +134,7 @@ namespace AutoApplier.Services
                         _store.MarkProcessed(job.JobId);
                         _store.Save();
                         Console.WriteLine("Başvuruldu olarak işaretlendi.");
+                        LearnFromCurrentPage();
                         return;
 
                     case "x":
@@ -157,7 +172,7 @@ namespace AutoApplier.Services
         {
             if (_driver == null) return;
 
-            var filler = new FormFiller(_driver, _config);
+            var filler = new FormFiller(_driver, _config, _memory);
             FillReport report;
 
             try
@@ -200,6 +215,38 @@ namespace AutoApplier.Services
 
             Console.WriteLine();
             Console.WriteLine("Formu kontrol et ve göndermeyi SEN yap. Bu araç gönder tuşuna basmaz.");
+        }
+
+        /// <summary>
+        /// Başvuru tamamlandığında formda duran cevapları hafızaya alır. Araç bir alanı
+        /// dolduramadığında sen elle dolduruyorsun; o bilgi kaybolmasın, aynı soru bir
+        /// sonraki formda hazır gelsin diye.
+        /// </summary>
+        private void LearnFromCurrentPage()
+        {
+            if (_driver == null) return;
+
+            try
+            {
+                var site = new Uri(_driver.Url).Host;
+                var answers = new FormFiller(_driver, _config, _memory).CaptureAnswers();
+
+                var yeni = 0;
+                foreach (var answer in answers)
+                {
+                    if (_memory.Remember(answer.Normalized, answer.Label, answer.Value, site)) yeni++;
+                }
+
+                if (answers.Count == 0) return;
+
+                _memory.Save();
+                Console.WriteLine($"Öğrenildi: {yeni} yeni cevap (hafızada toplam {_memory.Count}). " +
+                                  "Aynı sorular bir dahaki formda otomatik dolacak.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Cevaplar hafızaya alınamadı: {ex.Message}");
+            }
         }
 
         /// <summary>Formu doldurduktan sonra "n" ile geçerken başvurunun tamamlanıp tamamlanmadığını sorar.</summary>

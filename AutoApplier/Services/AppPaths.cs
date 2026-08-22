@@ -18,6 +18,9 @@ namespace AutoApplier.Services
         public static string JobsCsvFile => Path.Combine(DataDir, "jobs.csv");
         public static string JobsMarkdownFile => Path.Combine(DataDir, "jobs.md");
 
+        /// <summary>Formlarda elle doldurulan cevapların hafızası (bkz. FieldMemory).</summary>
+        public static string FieldMemoryFile => Path.Combine(DataDir, "field-memory.json");
+
         public static void EnsureDirectories()
         {
             Directory.CreateDirectory(ConfigDir);
