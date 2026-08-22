@@ -279,7 +279,7 @@ namespace AutoApplier.Services
         }
 
         /// <summary>HTML etiketlerini temizler, entity'leri çözer, fazla boşlukları toplar.</summary>
-        private static string CleanText(string raw)
+        public static string CleanText(string raw)
         {
             if (string.IsNullOrEmpty(raw)) return "";
             var withoutTags = TagRegex.Replace(raw, " ");

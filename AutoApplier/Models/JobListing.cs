@@ -28,6 +28,12 @@ namespace AutoApplier.Models
 
         public DateTime FetchedAt { get; set; } = DateTime.Now;
 
+        /// <summary>
+        /// İlan metni. Arama uç noktası vermiyor; yapay zekâya soru sorulacağı zaman
+        /// ilan sayfasından bir kez çekilip burada saklanıyor.
+        /// </summary>
+        public string? Description { get; set; }
+
         /// <summary>Başvuru asistanı bu ilanı işledi mi (başvuruldu).</summary>
         public bool Processed { get; set; }
 
