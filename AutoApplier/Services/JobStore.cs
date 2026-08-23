@@ -96,9 +96,18 @@ namespace AutoApplier.Services
         }
 
         /// <summary>İlanı kuyruktan kalıcı olarak çıkarır; başvuruldu olarak işaretlemez.</summary>
-        public void MarkDismissed(string jobId)
+        public void MarkDismissed(string jobId, string reason = "ilgilenmiyorum")
         {
-            if (_jobs.TryGetValue(jobId, out var job)) job.Dismissed = true;
+            if (!_jobs.TryGetValue(jobId, out var job)) return;
+
+            job.Dismissed = true;
+            job.DismissedReason = reason;
+        }
+
+        /// <summary>İlanın açık olup olmadığına bakıldığını kaydeder.</summary>
+        public void MarkChecked(string jobId)
+        {
+            if (_jobs.TryGetValue(jobId, out var job)) job.LastCheckedAt = DateTime.Now;
         }
     }
 }

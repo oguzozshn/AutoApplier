@@ -101,7 +101,7 @@ namespace AutoApplier.Services
 
                     if ((Console.ReadLine() ?? "").Trim().ToLowerInvariant() == "x")
                     {
-                        _store.MarkDismissed(job.JobId);
+                        _store.MarkDismissed(job.JobId, "kapandı");
                         _store.Save();
                         Console.WriteLine("Elendi.");
                         continue;

@@ -303,6 +303,9 @@ namespace AutoApplier
 
         // --- 6) Kapanmış ilanları ele -------------------------------------------
 
+        /// <summary>Bu süre içinde bakılmış ilan yeniden sorgulanmaz.</summary>
+        private const int RecheckAfterHours = 24;
+
         /// <summary>
         /// Bekleyen ilanları LinkedIn'den tek tek yoklayıp kapanmış olanları eler.
         /// En eskiden başlıyor: kapanma ihtimali en yüksek olanlar onlar.
@@ -330,18 +333,33 @@ namespace AutoApplier
             var cutoff = DateTime.Now.Date.AddDays(-days);
 
             // Tarihi bilinmeyen ilan da kontrol edilir: yaşı belli değilse kapanmış olabilir.
-            var targets = pending
+            var aged = pending
                 .Where(j => j.PostedDate == null || j.PostedDate.Value.Date <= cutoff)
                 .ToList();
 
+            // Yakında bakılmış ilanı tekrar sorgulamak boşuna: bir ilan bir günde kapanıp
+            // açılmıyor. Bu olmadan her tarama, önceki taramada açık çıkan yüzlerce ilanı
+            // baştan indiriyordu.
+            var fresh = DateTime.Now.AddHours(-RecheckAfterHours);
+            var targets = aged.Where(j => j.LastCheckedAt == null || j.LastCheckedAt < fresh).ToList();
+            var skipped = aged.Count - targets.Count;
+
             if (targets.Count == 0)
             {
-                Console.WriteLine($"{days} günden eski bekleyen ilan yok.");
+                Console.WriteLine(skipped > 0
+                    ? $"{days} günden eski {skipped} ilan var ama hepsine son {RecheckAfterHours} saatte bakılmış."
+                    : $"{days} günden eski bekleyen ilan yok.");
                 return;
             }
 
             var minutes = Math.Ceiling(targets.Count * 1.8 / 60);
-            Console.WriteLine($"{pending.Count} bekleyen ilanın {targets.Count} tanesi {days} günden eski.");
+            Console.WriteLine($"{pending.Count} bekleyen ilanın {aged.Count} tanesi {days} günden eski.");
+
+            if (skipped > 0)
+            {
+                Console.WriteLine($"Bunlardan {skipped} tanesine son {RecheckAfterHours} saatte bakılmıştı, atlanıyor.");
+            }
+
             Console.WriteLine($"Her biri için bir istek atılacak; tahmini süre ~{minutes:0} dakika.");
             Console.Write("Başlansın mı? [e/h] > ");
 
@@ -361,9 +379,11 @@ namespace AutoApplier
                 var job = targets[i];
                 var result = await checker.IsClosedAsync(job.Url);
 
+                if (result != null) store.MarkChecked(job.JobId);
+
                 if (result == true)
                 {
-                    store.MarkDismissed(job.JobId);
+                    store.MarkDismissed(job.JobId, "kapandı");
                     closed++;
                     Console.WriteLine($"  kapanmış: {Trim(job.Title, 42),-44} {job.Company}");
                 }

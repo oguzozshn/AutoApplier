@@ -34,6 +34,18 @@ namespace AutoApplier.Models
         /// </summary>
         public string? Description { get; set; }
 
+        /// <summary>
+        /// İlanın hâlâ açık olup olmadığına en son ne zaman bakıldı. Boşsa hiç bakılmamış.
+        /// Bu olmadan her tarama, daha önce açık çıkmış ilanları baştan sorguluyordu.
+        /// </summary>
+        public DateTime? LastCheckedAt { get; set; }
+
+        /// <summary>
+        /// Neden elendi: "kapandı" (LinkedIn başvuru kabul etmiyor) ya da "ilgilenmiyorum".
+        /// İkisi de kuyruktan çıkarır ama sebebi bilmek dışa aktarımı okurken işe yarıyor.
+        /// </summary>
+        public string? DismissedReason { get; set; }
+
         /// <summary>Başvuru asistanı bu ilanı işledi mi (başvuruldu).</summary>
         public bool Processed { get; set; }
 

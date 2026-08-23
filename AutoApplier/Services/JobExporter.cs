@@ -76,7 +76,14 @@ namespace AutoApplier.Services
         private static string StatusText(JobListing job)
         {
             if (job.Processed) return "başvuruldu";
-            if (job.Dismissed) return "elendi";
+
+            if (job.Dismissed)
+            {
+                return string.IsNullOrWhiteSpace(job.DismissedReason)
+                    ? "elendi"
+                    : $"elendi ({job.DismissedReason})";
+            }
+
             return "bekliyor";
         }
 
