@@ -513,8 +513,9 @@ namespace AutoApplier.Services
         {
             try
             {
-                _ = driver.WindowHandles.Count;
-                return true;
+                // Son pencere kapatıldığında sürücü hata vermek yerine boş liste dönebiliyor;
+                // bunu canlı saymak, sonraki her ilanda "no such window" hatasına yol açıyordu.
+                return driver.WindowHandles.Count > 0;
             }
             catch
             {

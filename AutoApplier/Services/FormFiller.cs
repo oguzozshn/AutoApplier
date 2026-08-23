@@ -186,7 +186,7 @@ namespace AutoApplier.Services
                         continue;
                     }
 
-                    var value = ResolveValue(normalized, profile);
+                    var value = ResolveValue(normalized, profile, QuestionText(label));
                     if (value == null)
                     {
                         RecordUnanswered(element, label, report, freeTextCandidate: true);
@@ -249,7 +249,7 @@ namespace AutoApplier.Services
                         continue;
                     }
 
-                    var value = ResolveValue(normalized, profile);
+                    var value = ResolveValue(normalized, profile, QuestionText(label));
                     if (value == null)
                     {
                         RecordUnanswered(element, label, report);
@@ -407,7 +407,7 @@ namespace AutoApplier.Services
                     var groupLabel = GetGroupLabelText(members[0]);
                     var normalized = FieldRules.Normalize(groupLabel);
 
-                    var value = ResolveValue(normalized, profile);
+                    var value = ResolveValue(normalized, profile, QuestionText(groupLabel));
                     if (value == null)
                     {
                         report.Skipped.Add($"{Describe(groupLabel)} — cevap eşleşmedi (seçenekli soru)");
@@ -468,7 +468,7 @@ namespace AutoApplier.Services
                         continue;
                     }
 
-                    var value = ResolveValue(normalized, profile);
+                    var value = ResolveValue(normalized, profile, QuestionText(label));
                     if (value == null) continue;
 
                     if (FieldRules.IsAffirmative(value))
@@ -512,7 +512,7 @@ namespace AutoApplier.Services
                     var label = GetLabelText(combo);
                     var normalized = FieldRules.Normalize(label);
 
-                    var value = ResolveValue(normalized, profile);
+                    var value = ResolveValue(normalized, profile, QuestionText(label));
                     if (value == null) continue;
 
                     var existing = combo.GetAttribute("value") ?? combo.Text;
@@ -558,7 +558,8 @@ namespace AutoApplier.Services
         /// Etikete karşılık gelen cevabı bulur. Önce profile özel serbest cevaplara,
         /// sonra genel kural tablosuna bakar.
         /// </summary>
-        private string? ResolveValue(string normalizedLabel, ResolvedProfile profile)
+        private string? ResolveValue(string normalizedLabel, ResolvedProfile profile,
+            string? visibleLabel = null)
         {
             if (string.IsNullOrWhiteSpace(normalizedLabel)) return null;
 
@@ -579,7 +580,14 @@ namespace AutoApplier.Services
             var learned = _memory?.Lookup(normalizedLabel);
             if (learned != null) return learned;
 
-            var answerKey = FieldRules.MatchKey(normalizedLabel);
+            // Görünen etiket, name/placeholder gibi ek kaynaklardan daha güvenilir. Gerçek bir
+            // formda "Soyad" alanının tam etiketinde "ad soyad" geçtiği için soyad alanına ad
+            // ve soyad birlikte yazılmıştı; önce görünen etikete bakmak bunu engelliyor.
+            var answerKey = (visibleLabel != null
+                                ? FieldRules.MatchKey(FieldRules.Normalize(visibleLabel))
+                                : null)
+                            ?? FieldRules.MatchKey(normalizedLabel);
+
             if (answerKey == null) return null;
 
             if (answerKey == AnswerKeys.Eeo) return _config.EeoDefaultAnswer;

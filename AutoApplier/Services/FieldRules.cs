@@ -23,7 +23,7 @@ namespace AutoApplier.Services
             // "preferred name" / "tercih edilen isim": kurumsal formlarda hitap adı sorulur, ad yazılır.
             new(AnswerKeys.FirstName, new[]
             {
-                "first name", "firstname", "given name", "forename", "ad ", "adiniz", "isim",
+                "first name", "firstname", "given name", "forename", " ad ", "adiniz", "isim",
                 "preferred name", "tercih edilen isim"
             }),
             new(AnswerKeys.LastName,  new[] { "last name", "lastname", "surname", "family name", "soyad" }),
@@ -37,8 +37,11 @@ namespace AutoApplier.Services
             new(AnswerKeys.PostalCode, new[] { "postal code", "postcode", "zip", "posta kodu" }),
             // "location" burada güvenli: "relocation" daha uzun eşleştiği için taşınma
             // sorusunu çalmıyor (bkz. MatchKey'in en-uzun-eşleşme kuralı).
-            new(AnswerKeys.City,       new[] { "city", "town", "location", "sehir", "ilce" }),
-            new(AnswerKeys.State,      new[] { "state", "province", "region", "il " }),
+            new(AnswerKeys.City,       new[] { "city", "town", "location", "sehir", "sehr", "ilce" }),
+            // " il " iki tarafı boşluklu: sadece "il " olsaydı "yıl " içinde de eşleşirdi ve
+            // "Deneyim Süresi (Yıl)" alanına şehir yazılırdı. Normalize baştan/sondan boşluk
+            // eklediği için tek başına duran "İl" yine yakalanıyor.
+            new(AnswerKeys.State,      new[] { "state", "province", "region", " il " }),
             new(AnswerKeys.Country,    new[] { "country", "ulke" }),
             // "email address" ve "linkedin address" bu kurala düşmesin.
             new(AnswerKeys.Address, new[] { "address", "street", "adres" },
@@ -53,7 +56,7 @@ namespace AutoApplier.Services
             new(AnswerKeys.YearsOfExperience, new[]
             {
                 "years of experience", "years experience", "yrs of experience",
-                "how many years", "total experience", "deneyim yili", "kac yil"
+                "how many years", "total experience", "deneyim yili", "deneyim sure", "kac yil"
             }),
             new(AnswerKeys.ExpectedSalary, new[]
             {
@@ -78,16 +81,22 @@ namespace AutoApplier.Services
             new(AnswerKeys.University, new[] { "school", "university", "college", "institution", "universite", "okul" }),
             new(AnswerKeys.Degree,     new[] { "degree", "education level", "egitim" }),
             new(AnswerKeys.Major,      new[] { "major", "field of study", "discipline", "bolum" }),
+            // "mezuniyet" hem "mezuniyet yılı" hem "mezuniyet not ortalaması" içinde geçiyor;
+            // ikincisine yıl yazılmasın diye not/ortalama geçen etiketler dışlandı.
             new(AnswerKeys.GraduationYear, new[]
             {
                 "graduation", "year of graduation", "end date", "mezuniyet"
-            }),
+            },
+                Excludes: new[] { "ortalama", "gpa", "not " }),
 
             // --- Uzun metinler ---
             new(AnswerKeys.CoverLetter, new[]
             {
                 "cover letter", "motivation", "why do you want", "tell us about yourself",
-                "additional information", "on yazi", "niye", "neden"
+                "additional information", "on yazi",
+                // Kelime sınırlı: "niye" sınırsız arandığında "mezu-niye-t" içinde eşleşip
+                // not ortalaması alanına ön yazı yazdırıyordu.
+                " niye ", " neden "
             }),
             new(AnswerKeys.Summary,   new[] { "summary", "about you", "bio", "ozet" }),
             new(AnswerKeys.Skills,    new[] { "skills", "technologies", "yetenek", "beceri" }),
@@ -127,6 +136,29 @@ namespace AutoApplier.Services
         /// hem "country" (Ülke) hem "legally authorized" (çalışma izni) tutuyor; uzun olan doğrudur.
         /// Sıraya güvenmek bu tür çakışmalarda sessizce yanlış alanı doldururdu.
         /// </summary>
+        /// <summary>
+        /// Kurallar, etiketlerle aynı alfabeye çevrilmiş hâlleriyle tutulur. Yazarken okunaklı
+        /// olsun diye "e-posta" gibi tireli yazılan anahtarlar normalizasyondan sonra asla
+        /// eşleşemiyordu: etiket "e posta"ya dönüşürken kural tireli kalıyordu. Yazılan
+        /// boşluk niyeti (" il " gibi kelime sınırı) korunuyor.
+        /// </summary>
+        private static readonly IReadOnlyList<FieldRule> MatchableRules = Rules
+            .Select(rule => new FieldRule(
+                rule.AnswerKey,
+                rule.Keywords.Select(NormalizeKeyword).ToArray(),
+                rule.Excludes?.Select(NormalizeKeyword).ToArray()))
+            .ToList();
+
+        private static string NormalizeKeyword(string keyword)
+        {
+            var normalized = Normalize(keyword);
+
+            if (!keyword.StartsWith(' ')) normalized = normalized.TrimStart();
+            if (!keyword.EndsWith(' ')) normalized = normalized.TrimEnd();
+
+            return normalized;
+        }
+
         public static string? MatchKey(string normalizedLabel)
         {
             if (string.IsNullOrWhiteSpace(normalizedLabel)) return null;
@@ -134,7 +166,7 @@ namespace AutoApplier.Services
             string? bestKey = null;
             var bestLength = 0;
 
-            foreach (var rule in Rules)
+            foreach (var rule in MatchableRules)
             {
                 if (rule.Excludes != null &&
                     rule.Excludes.Any(ex => normalizedLabel.Contains(ex, StringComparison.Ordinal)))
@@ -173,7 +205,10 @@ namespace AutoApplier.Services
             {
                 var mapped = ch switch
                 {
-                    'ı' or 'i' or 'î' => 'i',
+                    // .NET 'İ' harfini ToLowerInvariant ile değiştirmiyor (U+0130 kalıyor),
+                    // o yüzden burada elle eşliyoruz. Olmadığında "İl", "İsim", "İkamet"
+                    // gibi etiketler hiçbir kurala uymuyordu.
+                    'ı' or 'i' or 'î' or 'İ' => 'i',
                     'ş' => 's',
                     'ğ' => 'g',
                     'ü' or 'û' => 'u',
@@ -193,7 +228,11 @@ namespace AutoApplier.Services
                 }
             }
 
-            sb.Append(' ');
+            // Koşullu: girdi zaten boşlukla bitiyorsa ikinci bir boşluk eklenmemeli. Aksi halde
+            // Normalize kendi çıktısında farklı sonuç veriyor ve " il " gibi kelime sınırlı bir
+            // kural " il  " olup hiçbir etikete uymuyordu.
+            if (sb[^1] != ' ') sb.Append(' ');
+
             return sb.ToString();
         }
 
