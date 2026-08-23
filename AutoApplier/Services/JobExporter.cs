@@ -13,7 +13,7 @@ namespace AutoApplier.Services
             var sb = new StringBuilder();
 
             // Türkçe Excel noktalı virgülü ayraç olarak bekliyor.
-            sb.AppendLine("Tarih;Başlık;Şirket;Konum;Maaş;Arama;Başvuruldu;Link");
+            sb.AppendLine("Tarih;Başlık;Şirket;Konum;Maaş;Arama;Durum;Link");
 
             foreach (var job in jobs)
             {
@@ -23,7 +23,7 @@ namespace AutoApplier.Services
                   .Append(Escape(job.Location)).Append(';')
                   .Append(Escape(job.SalaryInfo ?? "")).Append(';')
                   .Append(Escape(job.SearchName)).Append(';')
-                  .Append(job.Processed ? "Evet" : "Hayır").Append(';')
+                  .Append(Escape(StatusText(job))).Append(';')
                   .Append(Escape(job.Url))
                   .AppendLine();
             }
@@ -52,7 +52,7 @@ namespace AutoApplier.Services
                 foreach (var job in group.OrderByDescending(j => j.PostedDate ?? DateTime.MinValue))
                 {
                     var title = $"[{EscapeMarkdown(job.Title)}]({job.Url})";
-                    var status = job.Processed ? "başvuruldu" : "-";
+                    var status = StatusText(job);
 
                     sb.Append("| ").Append(job.PostedDisplay)
                       .Append(" | ").Append(title)
@@ -66,6 +66,18 @@ namespace AutoApplier.Services
             }
 
             File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
+        }
+
+        /// <summary>
+        /// İlanın üç durumundan biri. Eskiden yalnızca "başvuruldu mu" yazılıyordu; elenen
+        /// ilan ile henüz bakılmamış ilan aynı görünüyordu ve dışa aktarımı gözle
+        /// tararken ayırt edilemiyordu.
+        /// </summary>
+        private static string StatusText(JobListing job)
+        {
+            if (job.Processed) return "başvuruldu";
+            if (job.Dismissed) return "elendi";
+            return "bekliyor";
         }
 
         private static string Escape(string value)
