@@ -97,7 +97,7 @@ namespace AutoApplier.Services
                     break;
                 }
 
-                var page = ParseJobCards(html, query.Name);
+                var page = ParseJobCards(html, query.Name, query.Category);
 
                 if (page.Count == 0)
                 {
@@ -111,6 +111,7 @@ namespace AutoApplier.Services
 
                 foreach (var job in page)
                 {
+                    if (!IsIncluded(job, query)) continue;
                     if (IsExcluded(job, query)) continue;
                     if (jobs.Count >= query.MaxResults) break;
                     jobs.TryAdd(job.JobId, job);
@@ -128,6 +129,20 @@ namespace AutoApplier.Services
 
             Console.WriteLine();
             return jobs.Values.ToList();
+        }
+
+        /// <summary>
+        /// İçerme listesi tanımlıysa başlık bunlardan birini içermek zorunda. LinkedIn'in kelime
+        /// araması geniş eşleşme yaptığı için havacılık şirketinin yazılım ilanı da "pilot"
+        /// aramasına düşüyor; kolu belli aramalarda gürültüyü ancak bu kesiyor.
+        /// </summary>
+        private static bool IsIncluded(JobListing job, SearchQuery query)
+        {
+            if (query.IncludeTitleKeywords.Count == 0) return true;
+
+            return query.IncludeTitleKeywords.Any(keyword =>
+                !string.IsNullOrWhiteSpace(keyword) &&
+                job.Title.Contains(keyword, StringComparison.OrdinalIgnoreCase));
         }
 
         private static bool IsExcluded(JobListing job, SearchQuery query)
@@ -217,7 +232,7 @@ namespace AutoApplier.Services
         private static readonly Regex TagRegex = new("<[^>]+>", RegexOptions.Compiled);
         private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
 
-        public static List<JobListing> ParseJobCards(string html, string searchName)
+        public static List<JobListing> ParseJobCards(string html, string searchName, string category = "")
         {
             var jobs = new List<JobListing>();
             if (string.IsNullOrWhiteSpace(html)) return jobs;
@@ -247,7 +262,8 @@ namespace AutoApplier.Services
                     Company = CleanText(CompanyRegex.Match(chunk).Groups[1].Value),
                     Location = CleanText(LocationRegex.Match(chunk).Groups[1].Value),
                     Url = url,
-                    SearchName = searchName
+                    SearchName = searchName,
+                    Category = category
                 };
 
                 var dateMatch = DateRegex.Match(chunk);

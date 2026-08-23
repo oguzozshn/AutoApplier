@@ -46,6 +46,19 @@ namespace AutoApplier.Models
         /// <summary>Bu aramaya verdiğin isim. Çıktıda hangi ilanın hangi aramadan geldiğini görürsün.</summary>
         public string Name { get; set; } = "Arama";
 
+        /// <summary>
+        /// İlanın hangi kariyer koluna ait olduğu ("yazılım", "pilotluk"...). Başvuru asistanı
+        /// bunu sorup kuyruğu daraltıyor: farklı kollara aynı ruh hâliyle başvurulmuyor.
+        /// </summary>
+        public string Category { get; set; } = "";
+
+        /// <summary>
+        /// Doluysa, başlığında bunlardan biri geçmeyen ilanlar elenir. LinkedIn'in kelime
+        /// araması bulanık — "pilot adayı" araması frontend ilanı bile getiriyor — ve
+        /// dışlama listesiyle bu gürültüyü tek tek kovalamak mümkün değil.
+        /// </summary>
+        public List<string> IncludeTitleKeywords { get; set; } = new();
+
         /// <summary>Aranacak kelimeler. LinkedIn arama kutusuna yazdığın şey.</summary>
         public string Keywords { get; set; } = "";
 

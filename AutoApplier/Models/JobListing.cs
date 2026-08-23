@@ -26,6 +26,9 @@ namespace AutoApplier.Models
         /// <summary>Bu ilanın hangi aramadan geldiği — birden fazla arama çalıştırıldığında ayırt etmek için.</summary>
         public string SearchName { get; set; } = "";
 
+        /// <summary>Aramanın kariyer kolu ("yazılım", "pilotluk"...). Boşsa kategorisiz.</summary>
+        public string Category { get; set; } = "";
+
         public DateTime FetchedAt { get; set; } = DateTime.Now;
 
         /// <summary>

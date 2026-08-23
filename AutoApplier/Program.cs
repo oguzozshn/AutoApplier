@@ -160,6 +160,13 @@ namespace AutoApplier
                 return;
             }
 
+            pending = FilterByCategory(pending);
+            if (pending.Count == 0)
+            {
+                Console.WriteLine("Bu kategoride bekleyen ilan yok.");
+                return;
+            }
+
             pending = FilterByCompany(pending);
             if (pending.Count == 0)
             {
@@ -201,6 +208,41 @@ namespace AutoApplier
                 "3" => pending.Where(j => ProfileMatcher.IsAbroad(profiles, j)).ToList(),
                 _ => pending
             };
+        }
+
+        /// <summary>
+        /// Kariyer kolu süzgeci. Yazılım ilanına başvurmakla pilotluk programına başvurmak
+        /// farklı hazırlık istiyor; kuyruğu karıştırmak yerine hangisiyle ilgilenildiği
+        /// sorulur. Kategori aramadan geliyor (searches.json), tek kategori varsa sorulmaz.
+        /// </summary>
+        private static List<JobListing> FilterByCategory(List<JobListing> pending)
+        {
+            var groups = pending
+                .GroupBy(j => string.IsNullOrWhiteSpace(j.Category) ? "kategorisiz" : j.Category)
+                .OrderByDescending(g => g.Count())
+                .ToList();
+
+            if (groups.Count < 2) return pending;
+
+            Console.WriteLine();
+            Console.Write($"1) Hepsi ({pending.Count})");
+
+            for (var i = 0; i < groups.Count; i++)
+            {
+                Console.Write($"   {i + 2}) {groups[i].Key} ({groups[i].Count()})");
+            }
+
+            Console.WriteLine();
+            Console.Write("Kategori [1] > ");
+
+            var choice = (Console.ReadLine() ?? "").Trim();
+
+            if (int.TryParse(choice, out var index) && index >= 2 && index - 2 < groups.Count)
+            {
+                return groups[index - 2].ToList();
+            }
+
+            return pending;
         }
 
         /// <summary>
