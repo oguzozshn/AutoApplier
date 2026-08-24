@@ -94,11 +94,18 @@ namespace AutoApplier
                 return;
             }
 
+            var searches = AskCategory(config.Searches, q => q.Category, "arama");
+
             var store = new JobStore();
             store.Load();
 
             using var service = new JobSearchService(config.DelayBetweenRequestsMs);
-            var fetched = await service.SearchAllAsync(config);
+
+            var fetched = await service.SearchAllAsync(new SearchConfig
+            {
+                Searches = searches,
+                DelayBetweenRequestsMs = config.DelayBetweenRequestsMs
+            });
 
             var newJobs = store.Merge(fetched);
             store.Save();
@@ -160,7 +167,7 @@ namespace AutoApplier
                 return;
             }
 
-            pending = FilterByCategory(pending);
+            pending = AskCategory(pending, j => j.Category, "ilan");
             if (pending.Count == 0)
             {
                 Console.WriteLine("Bu kategoride bekleyen ilan yok.");
@@ -211,21 +218,24 @@ namespace AutoApplier
         }
 
         /// <summary>
-        /// Kariyer kolu süzgeci. Yazılım ilanına başvurmakla pilotluk programına başvurmak
-        /// farklı hazırlık istiyor; kuyruğu karıştırmak yerine hangisiyle ilgilenildiği
-        /// sorulur. Kategori aramadan geliyor (searches.json), tek kategori varsa sorulmaz.
+        /// Kariyer kolu seçimi. Aynı soru iki yerde soruluyor: ilan çekerken hangi aramalar
+        /// çalışsın, başvururken hangi kolun ilanları gezilsin. Yazılım ilanına başvurmakla
+        /// pilotluk programına başvurmak farklı hazırlık istiyor; ayrıca sadece bir kolu
+        /// çekmek dakikalarca süren taramayı saniyelere indiriyor.
+        ///
+        /// Tek kategori varsa sorulmuyor — gereksiz bir adım olmasın.
         /// </summary>
-        private static List<JobListing> FilterByCategory(List<JobListing> pending)
+        private static List<T> AskCategory<T>(List<T> items, Func<T, string> categoryOf, string unit)
         {
-            var groups = pending
-                .GroupBy(j => string.IsNullOrWhiteSpace(j.Category) ? "kategorisiz" : j.Category)
+            var groups = items
+                .GroupBy(item => string.IsNullOrWhiteSpace(categoryOf(item)) ? "kategorisiz" : categoryOf(item))
                 .OrderByDescending(g => g.Count())
                 .ToList();
 
-            if (groups.Count < 2) return pending;
+            if (groups.Count < 2) return items;
 
             Console.WriteLine();
-            Console.Write($"1) Hepsi ({pending.Count})");
+            Console.Write($"1) Hepsi ({items.Count} {unit})");
 
             for (var i = 0; i < groups.Count; i++)
             {
@@ -237,12 +247,9 @@ namespace AutoApplier
 
             var choice = (Console.ReadLine() ?? "").Trim();
 
-            if (int.TryParse(choice, out var index) && index >= 2 && index - 2 < groups.Count)
-            {
-                return groups[index - 2].ToList();
-            }
-
-            return pending;
+            return int.TryParse(choice, out var index) && index >= 2 && index - 2 < groups.Count
+                ? groups[index - 2].ToList()
+                : items;
         }
 
         /// <summary>

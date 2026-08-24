@@ -32,8 +32,8 @@ Menü:
 
 | Seçenek | Ne yapar |
 |---|---|
-| 1 | İlanları çeker, yeni olanları listeler, CSV/Markdown'a yazar. Giriş gerektirmez. |
-| 2 | Başvuru asistanı: ilanları tek tek açar, profili eşleştirir, formu doldurur. |
+| 1 | İlanları çeker, yeni olanları listeler, CSV/Markdown'a yazar. Giriş gerektirmez. Birden fazla kariyer kolu tanımlıysa hangisinin çekileceğini sorar. |
+| 2 | Başvuru asistanı: ilanları tek tek açar, profili eşleştirir, formu doldurur. Başlarken bölge, kariyer kolu ve şirket süzgeçlerini sorar. |
 | 3 | Kayıtlı ilanları tekrar dışa aktarır. |
 | 4 | Hangi ilana hangi profilin seçildiğini gösterir (anahtar kelimeleri ayarlamak için). |
 | 5 | Hiçbir profile uymayan bekleyen ilanları topluca eler. |
@@ -75,6 +75,16 @@ Birden fazla arama tanımlayabilirsin; hepsi tek seferde çalışır ve sonuçla
 - `JobType`: `fulltime` | `parttime` | `contract` | `internship` | `any`
 - `ExcludeTitleKeywords`: başlığında bunlardan biri geçen ilanlar elenir
 - `DelayBetweenRequestsMs`: düşürme — LinkedIn hız sınırına (HTTP 429) takılırsın
+
+### Kariyer kolları
+
+Her aramaya `Category` verilebilir ("yazılım", "pilotluk"...). Kategori hem ilan çekerken
+(hangi aramalar çalışsın) hem başvururken (hangi kolun ilanları gezilsin) sorulur; tek
+kategori tanımlıysa soru sorulmaz.
+
+`IncludeTitleKeywords` ise başlık filtresi: doluysa, başlığında bunlardan biri geçmeyen
+ilanlar elenir. LinkedIn'in kelime araması geniş eşleşme yaptığı için gerekiyor — "pilot"
+araması havacılık şirketlerinin yazılım ilanlarını da getiriyor.
 
 ### `config/profiles.json` — bilgiler pozisyona göre nasıl değişsin
 
