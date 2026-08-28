@@ -65,6 +65,14 @@ namespace AutoApplier.Models
         /// <summary>Konum, ör. "Türkiye", "İstanbul, Türkiye", "Remote".</summary>
         public string Location { get; set; } = "Türkiye";
 
+        /// <summary>
+        /// LinkedIn şirket kimliği (f_C). Doluysa yalnızca o şirketin ilanları gelir —
+        /// kelimeyle "Siemens" aramaktan farklı: kelime araması ilan metninde Siemens geçen
+        /// başka şirketlerin ilanlarını da getiriyor. Kimliği şirketin LinkedIn iş
+        /// sayfasındaki adres çubuğunda f_C parametresinde görebilirsin (Siemens: 1043).
+        /// </summary>
+        public string CompanyId { get; set; } = "";
+
         /// <summary>Kaç ilan çekilsin. LinkedIn guest uç noktası pratikte ~1000'de kesiyor.</summary>
         public int MaxResults { get; set; } = 100;
 

@@ -191,6 +191,11 @@ namespace AutoApplier.Services
             };
             if (jobType != null) parameters.Add("f_JT=" + jobType);
 
+            if (!string.IsNullOrWhiteSpace(query.CompanyId))
+            {
+                parameters.Add("f_C=" + Uri.EscapeDataString(query.CompanyId.Trim()));
+            }
+
             if (query.EasyApplyOnly) parameters.Add("f_AL=true");
             if (query.SortByDate) parameters.Add("sortBy=DD");
 
